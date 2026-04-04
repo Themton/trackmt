@@ -567,7 +567,7 @@ function ParcelForm({ parcel, user, shops, onSave, onClose }) {
 // ═══════════════════════════════════════════════════════════════
 // IMPORT EXCEL MODAL
 // ═══════════════════════════════════════════════════════════════
-function ImportModal({ user, shops, onSave, onClose }) {
+function ImportModal({ user, shops, onSave, onClose, inline }) {
   const [rows, setRows] = useState([]);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -655,6 +655,34 @@ function ImportModal({ user, shops, onSave, onClose }) {
   const toggleRow = (i) => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, _selected: !r._selected } : r));
   const toggleAll = () => { const allSel = rows.every(r => r._selected); setRows(prev => prev.map(r => ({ ...r, _selected: !allSel }))); };
 
+  if (inline) return (
+    <div style={{ padding: 24 }}>
+      <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
+        <label style={{ fontSize: 13, fontWeight: 600 }}>🏪 ร้านผู้ส่ง:</label>
+        <select value={selectedShop} onChange={e => setSelectedShop(e.target.value)} style={{ padding: "8px 14px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontFamily: "inherit", minWidth: 200 }}><option value="">--</option>{shops?.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+      </div>
+      {rows.length === 0 && !importing && (<>
+        <div onClick={() => fileRef.current?.click()} style={{ border: "2px dashed #d1d5db", borderRadius: 16, padding: 50, textAlign: "center", cursor: "pointer", background: "#fff" }}>
+          <div style={{ fontSize: 48, marginBottom: 10 }}>📄</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#475569" }}>คลิกเลือกไฟล์ หรือ ลากวาง</div>
+          <div style={{ fontSize: 13, color: "#94a3b8", marginTop: 6 }}>รองรับ .csv .xlsx .xls</div>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} style={{ display: "none" }} />
+        </div>
+        <div style={{ marginTop: 16, padding: 16, background: "#fef9c3", borderRadius: 12, border: "1px solid #fde68a" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>📋 คอลัมน์ที่ต้องมี</div>
+          <div style={{ fontSize: 12, color: "#78716c", marginTop: 4 }}>ชื่อ, เบอร์โทร, ที่อยู่, ตำบล, อำเภอ, จังหวัด, รหัสไปรษณีย์, COD, หมายเหตุ</div>
+          <div style={{ fontSize: 11, color: "#a8a29e", marginTop: 4 }}>* ชื่อคอลัมน์ภาษาไทยหรืออังกฤษก็ได้ ระบบจับอัตโนมัติ</div>
+        </div>
+      </>)}
+      {rows.length > 0 && !importing && (<>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><span style={{ fontSize: 14, fontWeight: 700 }}>พบ {rows.length} รายการ</span><button onClick={toggleAll} style={{ padding: "6px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{rows.every(r => r._selected) ? "ยกเลิกทั้งหมด" : "เลือกทั้งหมด"}</button></div>
+        <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 12, background: "#fff" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ background: "#f8fafc" }}><th style={{ padding: 8, width: 30 }}>✓</th><th style={{ padding: 8, textAlign: "left" }}>ชื่อ</th><th style={{ padding: 8, textAlign: "left" }}>เบอร์</th><th style={{ padding: 8, textAlign: "left" }}>อำเภอ</th><th style={{ padding: 8, textAlign: "right" }}>COD</th></tr></thead><tbody>{rows.map((r, i) => <tr key={i} style={{ borderTop: "1px solid #f1f5f9", opacity: r._selected ? 1 : .4 }}><td style={{ padding: 8, textAlign: "center" }}><input type="checkbox" checked={r._selected} onChange={() => toggleRow(i)} /></td><td style={{ padding: 8, fontWeight: 600 }}>{r.receiver_name}</td><td style={{ padding: 8, fontFamily: "monospace" }}>{r.receiver_phone}</td><td style={{ padding: 8 }}>{r.receiver_district}</td><td style={{ padding: 8, textAlign: "right", fontWeight: 600, color: r.cod_amount > 0 ? "#d97706" : "#cbd5e1" }}>{r.cod_amount > 0 ? `฿${r.cod_amount}` : "—"}</td></tr>)}</tbody></table></div>
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}><button onClick={handleImport} style={{ flex: 1, padding: 14, background: "#059669", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>📥 นำเข้า {rows.filter(r => r._selected).length} รายการ</button><button onClick={() => setRows([])} style={{ padding: "14px 20px", background: "#f1f5f9", border: "none", borderRadius: 12, fontWeight: 600, cursor: "pointer" }}>เลือกไฟล์ใหม่</button></div>
+      </>)}
+      {importing && <div style={{ padding: 40, textAlign: "center" }}><div style={{ fontSize: 40 }}>{done ? "✅" : "⏳"}</div><div style={{ fontSize: 16, fontWeight: 700, marginTop: 12 }}>{done ? "สำเร็จ!" : `กำลังนำเข้า... ${progress}%`}</div><div style={{ width: "100%", height: 8, background: "#e2e8f0", borderRadius: 4, marginTop: 12 }}><div style={{ width: `${progress}%`, height: "100%", background: "#059669", borderRadius: 4 }} /></div></div>}
+    </div>
+  );
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 30, overflowY: "auto" }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "95%", maxWidth: 800, marginBottom: 40, overflow: "hidden" }}>
@@ -662,7 +690,7 @@ function ImportModal({ user, shops, onSave, onClose }) {
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>📥 Import Excel</h2>
           <button onClick={onClose} style={{ background: "rgba(255,255,255,.2)", border: "none", color: "#fff", width: 36, height: 36, borderRadius: 10, fontSize: 18, cursor: "pointer" }}>✕</button>
         </div>
-        <div style={{ padding: 24, maxHeight: "75vh", overflowY: "auto" }}>
+        <div style={{ padding: 24, maxHeight: inline ? "none" : "75vh", overflowY: "auto" }}>
           {/* เลือกร้าน */}
           <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>🏪 ร้านผู้ส่ง:</label>
@@ -869,6 +897,7 @@ export default function FlashBackend() {
   const [shops, setShops] = useState([]);
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [activePage, setActivePage] = useState("parcels");
   const PER_PAGE = 20;
   const isDemo = SUPABASE_URL.includes("YOUR_PROJECT");
   const perm = user ? (CAN[user.role] || {}) : {};
@@ -970,90 +999,151 @@ export default function FlashBackend() {
   if (!user) return <LoginScreen onLogin={handleLogin} isDemo={isDemo} />;
   const role = ROLES[user.role] || ROLES.shipping;
 
+  const MENU = [
+    { key: "parcels", label: "การจัดส่ง", icon: "📦" },
+    { key: "import", label: "Import ไฟล์", icon: "📥" },
+    { key: "shops", label: "ร้านค้า", icon: "🏪" },
+    ...(perm.users ? [{ key: "users", label: "จัดการผู้ใช้", icon: "👥" }] : []),
+  ];
+
+  // ═══ IMPORT PAGE ═══
+  const ImportPage = () => (
+    <div style={{ padding: 24 }}>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>📥 Import ไฟล์สร้างเลขพัสดุ</h2>
+        <p style={{ margin: "6px 0 0", fontSize: 14, color: "#64748b" }}>อัพโหลดไฟล์ CSV / Excel → ตรวจสอบข้อมูล → สร้างออเดอร์ + เลขพัสดุ Flash</p>
+      </div>
+      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden" }}>
+        <ImportModal user={user} shops={shops} onClose={() => setActivePage("parcels")} onSave={() => { setActivePage("parcels"); loadParcels(); }} inline />
+      </div>
+    </div>
+  );
+
+  // ═══ SHOPS PAGE — trigger modal ═══
+  const ShopsPage = () => { if (!showShops) { setShowShops(true); } return <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>กำลังเปิดหน้าจัดการร้านค้า...</div>; };
+
+  // ═══ USERS PAGE — trigger modal ═══
+  const UsersPage = () => { if (!showUsers) { setShowUsers(true); } return <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>กำลังเปิดหน้าจัดการผู้ใช้...</div>; };
+
   return (
-    <div style={{ minHeight: "100vh", background: "#f8f7f4", fontFamily: "'IBM Plex Sans Thai',-apple-system,sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#f5f5f0", fontFamily: "'IBM Plex Sans Thai',-apple-system,sans-serif", display: "flex" }}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-      {/* HEADER */}
-      <div style={{ background: "linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)", padding: "16px 24px", color: "#fff" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ background: "linear-gradient(135deg,#e53e3e,#f56565)", padding: "6px 12px", borderRadius: 10, fontSize: 20 }}>⚡</div>
-              <div><div style={{ fontSize: 20, fontWeight: 800 }}>Flash Backend</div><div style={{ fontSize: 12, opacity: .5 }}>ระบบจัดการพัสดุ</div></div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,.08)", padding: "8px 14px", borderRadius: 12, border: "1px solid rgba(255,255,255,.1)" }}>
-                <div style={{ width: 32, height: 32, borderRadius: 10, background: user.avatar_color || role.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#fff" }}>{user.display_name?.charAt(0)}</div>
-                <div><div style={{ fontSize: 13, fontWeight: 600 }}>{user.display_name}</div><div style={{ fontSize: 10, opacity: .6 }}>{role.icon} {role.label}</div></div>
+
+      {/* ═══ SIDEBAR ═══ */}
+      <div style={{ width: 200, background: "#1a1a2e", color: "#fff", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 100, flexShrink: 0 }}>
+        {/* Logo */}
+        <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#f87171", display: "flex", alignItems: "center", gap: 8 }}>⚡ Flash Express</div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", marginTop: 2 }}>ระบบจัดการขนส่ง</div>
+        </div>
+
+        {/* Menu */}
+        <div style={{ flex: 1, padding: "12px 8px" }}>
+          {MENU.map(m => (
+            <button key={m.key} onClick={() => setActivePage(m.key)} style={{
+              width: "100%", padding: "11px 14px", border: "none", borderRadius: 10, marginBottom: 4,
+              background: activePage === m.key ? "rgba(239,68,68,.15)" : "transparent",
+              color: activePage === m.key ? "#f87171" : "rgba(255,255,255,.6)",
+              fontSize: 13, fontWeight: activePage === m.key ? 700 : 500, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 10, textAlign: "left", fontFamily: "inherit",
+            }}>{m.icon} {m.label}</button>
+          ))}
+        </div>
+
+        {/* User */}
+        <div style={{ padding: "12px 14px", borderTop: "1px solid rgba(255,255,255,.08)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: user.avatar_color || role.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#fff" }}>{user.display_name?.charAt(0)}</div>
+            <div><div style={{ fontSize: 12, fontWeight: 600 }}>{user.display_name}</div><div style={{ fontSize: 10, opacity: .5 }}>{role.icon} {role.label}</div></div>
+          </div>
+          <button onClick={handleLogout} style={{ width: "100%", padding: "8px 12px", background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 8, color: "#f87171", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>🚪 ออกจากระบบ</button>
+        </div>
+      </div>
+
+      {/* ═══ MAIN CONTENT ═══ */}
+      <div style={{ flex: 1, marginLeft: 200, minHeight: "100vh" }}>
+        {/* TOP BAR */}
+        {activePage === "parcels" && (
+          <div style={{ background: "#fff", padding: "14px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, position: "sticky", top: 0, zIndex: 50 }}>
+            <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 200 }}>
+              <div style={{ flex: 1, position: "relative" }}>
+                <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: .4 }}>🔍</span>
+                <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="ค้นหา เลขพัสดุ, ชื่อ, เบอร์, Tracking..." style={{ width: "100%", padding: "9px 12px 9px 36px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
               </div>
-              {perm.users && <button onClick={() => setShowUsers(true)} style={{ padding: "8px 14px", background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>👥</button>}
-              {perm.create && <button onClick={() => setShowShops(true)} style={{ padding: "8px 14px", background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>🏪</button>}
-              {perm.create && <button onClick={() => setShowImport(true)} style={{ padding: "8px 14px", background: "rgba(16,185,129,.8)", border: "none", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📥 Import</button>}
-              {perm.create && <button onClick={() => { setEditParcel(null); setShowForm(true); }} style={{ padding: "8px 16px", background: "#e53e3e", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>＋ สร้างพัสดุ</button>}
-              <button onClick={handleLogout} style={{ padding: "8px 14px", background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 10, color: "#f87171", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>🚪</button>
+              <button onClick={loadParcels} style={{ padding: "9px 14px", background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>🔄</button>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {perm.create && <button onClick={() => { setEditParcel(null); setShowForm(true); }} style={{ padding: "9px 18px", background: "#dc2626", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>＋ สร้างพัสดุ</button>}
             </div>
           </div>
-          {isDemo && <div style={{ marginTop: 10, padding: "8px 14px", background: "rgba(251,191,36,.12)", border: "1px solid rgba(251,191,36,.25)", borderRadius: 10, fontSize: 12, color: "#fbbf24" }}>⚠️ Demo — {role.icon} {user.display_name} ({role.label})</div>}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 8, marginTop: 14 }}>
-            {[{ l: "ทั้งหมด", v: stats.total, c: "#818cf8", i: "📦" }, { l: "ร่าง", v: stats.draft, c: "#94a3b8", i: "📝" }, { l: "กำลังส่ง", v: stats.inTransit, c: "#f59e0b", i: "🚛" }, { l: "สำเร็จ", v: stats.delivered, c: "#34d399", i: "✅" }, { l: "มีปัญหา", v: stats.problems, c: "#f87171", i: "⚠️" }, ...(perm.viewCOD ? [{ l: "COD รวม", v: `฿${stats.codTotal.toLocaleString()}`, c: "#a78bfa", i: "💰" }] : [])].map((s, i) => <div key={i} style={{ background: "rgba(255,255,255,.06)", borderRadius: 10, padding: "10px 12px", border: "1px solid rgba(255,255,255,.07)" }}><div style={{ fontSize: 10, color: "rgba(255,255,255,.45)", marginBottom: 2 }}>{s.i} {s.l}</div><div style={{ fontSize: 20, fontWeight: 800, color: s.c }}>{s.v}</div></div>)}
-          </div>
+        )}
+
+        <div style={{ padding: activePage === "parcels" ? "0" : "24px" }}>
+          {/* ═══ PARCELS PAGE ═══ */}
+          {activePage === "parcels" && (<>
+            {/* STATS */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, padding: "16px 24px" }}>
+              {[{ l: "ทั้งหมด", v: stats.total, c: "#6366f1", i: "📦" }, { l: "ร่าง", v: stats.draft, c: "#94a3b8", i: "📝" }, { l: "กำลังส่ง", v: stats.inTransit, c: "#f59e0b", i: "🚛" }, { l: "สำเร็จ", v: stats.delivered, c: "#059669", i: "✅" }, { l: "มีปัญหา", v: stats.problems, c: "#dc2626", i: "⚠️" }, ...(perm.viewCOD ? [{ l: "COD รวม", v: `฿${stats.codTotal.toLocaleString()}`, c: "#7c3aed", i: "💰" }] : [])].map((s, i) => <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: "1px solid #e2e8f0" }}><div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>{s.i} {s.l}</div><div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div></div>)}
+            </div>
+
+            {/* STATUS TABS */}
+            <div style={{ padding: "0 24px 12px" }}>
+              <div style={{ display: "flex", gap: 0, overflowX: "auto", background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                {[{ key: "ALL", label: "ทั้งหมด", icon: "📋", color: "#475569" }, ...STATUSES].map(s => { const cnt = s.key === "ALL" ? parcels.length : parcels.filter(p => p.status === s.key).length; const active = statusFilter === s.key; return <button key={s.key} onClick={() => { setStatusFilter(s.key); setPage(0); }} style={{ padding: "9px 12px", border: "none", borderBottom: active ? `3px solid ${s.color}` : "3px solid transparent", background: "transparent", color: active ? s.color : cnt ? "#475569" : "#cbd5e1", fontSize: 11, fontWeight: active ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", minWidth: 68 }}>{s.icon} {s.label}{cnt > 0 && <span style={{ marginLeft: 3, background: active ? s.color : "#e2e8f0", color: active ? "#fff" : "#64748b", padding: "1px 5px", borderRadius: 8, fontSize: 10, fontWeight: 700 }}>{cnt}</span>}</button>; })}
+              </div>
+            </div>
+
+            {/* TABLE */}
+            <div style={{ padding: "0 24px 24px" }}>
+              <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", overflow: "hidden" }}>
+                {/* Batch Action Bar */}
+                {selectedIds.size > 0 && perm.status && (
+                  <div style={{ padding: "10px 16px", background: "linear-gradient(135deg,#eef2ff,#faf5ff)", borderBottom: "1px solid #c7d2fe", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#4f46e5" }}>✓ เลือก {selectedIds.size} รายการ</span>
+                    <button onClick={batchCreateFlash} disabled={!!batchProgress} style={{ padding: "7px 16px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚡ สร้างเลข Tracking ({parcels.filter(p => selectedIds.has(p.id) && !p.flash_pno).length})</button>
+                    <button onClick={() => setSelectedIds(new Set())} style={{ padding: "7px 14px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
+                    {batchProgress && <div style={{ flex: 1, minWidth: 150 }}><div style={{ fontSize: 11, color: "#6366f1", marginBottom: 3 }}>กำลังสร้าง... {batchProgress.done}/{batchProgress.total}</div><div style={{ width: "100%", height: 6, background: "#e2e8f0", borderRadius: 3 }}><div style={{ width: `${(batchProgress.done / batchProgress.total) * 100}%`, height: "100%", background: "#6366f1", borderRadius: 3, transition: ".3s" }} /></div></div>}
+                  </div>
+                )}
+                {loading ? <div style={{ padding: 60, textAlign: "center", color: "#94a3b8" }}>⏳ กำลังโหลด...</div> : !paged.length ? <div style={{ padding: 60, textAlign: "center", color: "#94a3b8" }}><div style={{ fontSize: 40 }}>📭</div><div style={{ fontSize: 15, fontWeight: 600, marginTop: 8 }}>ไม่พบพัสดุ</div></div> : (
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                      <thead><tr style={{ background: "#f8fafc" }}>
+                        {perm.status && <th style={{ padding: "10px 8px", width: 36, borderBottom: "1px solid #e2e8f0" }}><input type="checkbox" checked={paged.length > 0 && paged.every(p => selectedIds.has(p.id))} onChange={toggleSelectAll} style={{ cursor: "pointer" }} /></th>}
+                        {["เลขพัสดุ", "ผู้รับ", "จังหวัด", "Tracking", "สถานะ", ...(perm.viewCOD ? ["COD"] : []), "ผู้สร้าง", "จัดการ"].map((h, i) => <th key={i} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+                      <tbody>{paged.map((p, i) => { const st = getStatus(p.status); return (
+                        <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedIds.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
+                          {perm.status && <td style={{ padding: "10px 8px", textAlign: "center" }}><input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} style={{ cursor: "pointer" }} /></td>}
+                          <td style={{ padding: "10px 12px" }}><div style={{ cursor: "pointer", fontFamily: "monospace", fontWeight: 600, fontSize: 12 }} onClick={() => setViewParcel(p)}>{p.parcel_no}</div><div style={{ fontSize: 10, color: "#94a3b8" }}>{new Date(p.created_at).toLocaleDateString("th-TH", { day: "2-digit", month: "short" })}</div></td>
+                          <td style={{ padding: "10px 12px" }}><div style={{ fontWeight: 600 }}>{p.receiver_name}</div><div style={{ fontSize: 11, color: "#94a3b8" }}>{p.receiver_phone}</div></td>
+                          <td style={{ padding: "10px 12px", fontSize: 12, color: "#64748b" }}>{p.receiver_province || "—"}</td>
+                          <td style={{ padding: "10px 12px" }}>{p.flash_pno ? <span style={{ fontFamily: "monospace", fontSize: 11, background: "#eef2ff", color: "#4f46e5", padding: "3px 7px", borderRadius: 6, fontWeight: 600 }}>{p.flash_pno}</span> : <span style={{ fontSize: 11, color: "#cbd5e1" }}>—</span>}</td>
+                          <td style={{ padding: "10px 12px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 20, background: st.bg, color: st.color, fontSize: 11, fontWeight: 600 }}>{st.icon} {st.label}</span></td>
+                          {perm.viewCOD && <td style={{ padding: "10px 12px" }}>{p.cod_enabled ? <span style={{ fontWeight: 700, color: "#d97706" }}>฿{Number(p.cod_amount || 0).toLocaleString()}</span> : <span style={{ fontSize: 11, color: "#cbd5e1" }}>—</span>}</td>}
+                          <td style={{ padding: "10px 12px", fontSize: 11, color: "#64748b" }}>{p.created_by_name || "—"}</td>
+                          <td style={{ padding: "10px 8px" }}><div style={{ display: "flex", gap: 3 }}>
+                            {perm.status && !p.flash_pno && <button title="สร้างเลข Tracking" onClick={() => createFlashOrder(p)} disabled={flashLoading === p.id} style={{ width: 30, height: 30, border: "1px solid #fbbf24", borderRadius: 8, background: flashLoading === p.id ? "#fef3c7" : "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>{flashLoading === p.id ? "⏳" : "⚡"}</button>}
+                            {perm.status && <button title="สถานะ" onClick={() => setStatusParcel(p)} style={{ width: 30, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🔄</button>}
+                            {perm.edit && <button title="แก้ไข" onClick={() => { setEditParcel(p); setShowForm(true); }} style={{ width: 30, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</button>}
+                            {perm.print && <button title="ปริ้น" onClick={() => { setPrintParcel(p); if (!p.label_printed) markPrinted(p); }} style={{ width: 30, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🖨️</button>}
+                            {perm.delete && <button title="ลบ" onClick={() => handleDelete(p)} style={{ width: 30, height: 30, border: "1px solid #fca5a5", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑️</button>}
+                          </div></td>
+                        </tr>); })}</tbody>
+                    </table>
+                  </div>
+                )}
+                {totalPages > 1 && <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: 12, borderTop: "1px solid #f1f5f9" }}><button disabled={!page} onClick={() => setPage(p => p - 1)} style={{ padding: "6px 14px", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: !page ? "not-allowed" : "pointer", opacity: !page ? .4 : 1 }}>◀</button><span style={{ fontSize: 12, color: "#64748b" }}>{page + 1}/{totalPages} ({filtered.length})</span><button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} style={{ padding: "6px 14px", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: page >= totalPages - 1 ? "not-allowed" : "pointer", opacity: page >= totalPages - 1 ? .4 : 1 }}>▶</button></div>}
+              </div>
+            </div>
+          </>)}
+
+          {activePage === "import" && <ImportPage />}
+          {activePage === "shops" && <ShopsPage />}
+          {activePage === "users" && <UsersPage />}
         </div>
       </div>
-      {/* BODY */}
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "16px" }}>
-        <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 16, opacity: .4 }}>🔍</span><input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="ค้นหา..." style={{ width: "100%", padding: "11px 12px 11px 42px", border: "1.5px solid #e2e8f0", borderRadius: 12, fontSize: 14, outline: "none", fontFamily: "inherit", background: "#fff" }} /></div>
-          <button onClick={loadParcels} style={{ padding: "11px 16px", background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 600 }}>🔄</button>
-        </div>
-        <div style={{ display: "flex", gap: 0, marginBottom: 14, overflowX: "auto", background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0" }}>
-          {[{ key: "ALL", label: "ทั้งหมด", icon: "📋", color: "#475569" }, ...STATUSES].map(s => { const cnt = s.key === "ALL" ? parcels.length : parcels.filter(p => p.status === s.key).length; const active = statusFilter === s.key; return <button key={s.key} onClick={() => { setStatusFilter(s.key); setPage(0); }} style={{ padding: "9px 12px", border: "none", borderBottom: active ? `3px solid ${s.color}` : "3px solid transparent", background: "transparent", color: active ? s.color : cnt ? "#475569" : "#cbd5e1", fontSize: 11, fontWeight: active ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", minWidth: 68 }}>{s.icon} {s.label}{cnt > 0 && <span style={{ marginLeft: 3, background: active ? s.color : "#e2e8f0", color: active ? "#fff" : "#64748b", padding: "1px 5px", borderRadius: 8, fontSize: 10, fontWeight: 700 }}>{cnt}</span>}</button>; })}
-        </div>
-        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", overflow: "hidden" }}>
-          {/* Batch Action Bar */}
-          {selectedIds.size > 0 && perm.status && (
-            <div style={{ padding: "10px 16px", background: "linear-gradient(135deg,#eef2ff,#faf5ff)", borderBottom: "1px solid #c7d2fe", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#4f46e5" }}>✓ เลือก {selectedIds.size} รายการ</span>
-              <button onClick={batchCreateFlash} disabled={!!batchProgress} style={{ padding: "7px 16px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>⚡ สร้างเลข Tracking ({parcels.filter(p => selectedIds.has(p.id) && !p.flash_pno).length})</button>
-              <button onClick={() => setSelectedIds(new Set())} style={{ padding: "7px 14px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
-              {batchProgress && (
-                <div style={{ flex: 1, minWidth: 150 }}>
-                  <div style={{ fontSize: 11, color: "#6366f1", marginBottom: 3 }}>กำลังสร้าง... {batchProgress.done}/{batchProgress.total} (สำเร็จ {batchProgress.success})</div>
-                  <div style={{ width: "100%", height: 6, background: "#e2e8f0", borderRadius: 3 }}><div style={{ width: `${(batchProgress.done / batchProgress.total) * 100}%`, height: "100%", background: "#6366f1", borderRadius: 3, transition: ".3s" }} /></div>
-                </div>
-              )}
-            </div>
-          )}
-          {loading ? <div style={{ padding: 60, textAlign: "center", color: "#94a3b8" }}>⏳ กำลังโหลด...</div> : !paged.length ? <div style={{ padding: 60, textAlign: "center", color: "#94a3b8" }}><div style={{ fontSize: 40 }}>📭</div><div style={{ fontSize: 15, fontWeight: 600, marginTop: 8 }}>ไม่พบพัสดุ</div></div> : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead><tr style={{ background: "#f8fafc" }}>
-                  {perm.status && <th style={{ padding: "10px 8px", width: 36, borderBottom: "1px solid #e2e8f0" }}><input type="checkbox" checked={paged.length > 0 && paged.every(p => selectedIds.has(p.id))} onChange={toggleSelectAll} style={{ cursor: "pointer" }} /></th>}
-                  {["เลขพัสดุ", "ผู้รับ", "จังหวัด", "Tracking", "สถานะ", ...(perm.viewCOD ? ["COD"] : []), "ผู้สร้าง", "จัดการ"].map((h, i) => <th key={i} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
-                <tbody>{paged.map((p, i) => { const st = getStatus(p.status); return (
-                  <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedIds.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
-                    {perm.status && <td style={{ padding: "10px 8px", textAlign: "center" }}><input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} style={{ cursor: "pointer" }} /></td>}
-                    <td style={{ padding: "10px 12px" }}><div style={{ cursor: "pointer", fontFamily: "monospace", fontWeight: 600, fontSize: 12 }} onClick={() => setViewParcel(p)}>{p.parcel_no}</div><div style={{ fontSize: 10, color: "#94a3b8" }}>{new Date(p.created_at).toLocaleDateString("th-TH", { day: "2-digit", month: "short" })}</div></td>
-                    <td style={{ padding: "10px 12px" }}><div style={{ fontWeight: 600 }}>{p.receiver_name}</div><div style={{ fontSize: 11, color: "#94a3b8" }}>{p.receiver_phone}</div></td>
-                    <td style={{ padding: "10px 12px", fontSize: 12, color: "#64748b" }}>{p.receiver_province || "—"}</td>
-                    <td style={{ padding: "10px 12px" }}>{p.flash_pno ? <span style={{ fontFamily: "monospace", fontSize: 11, background: "#eef2ff", color: "#4f46e5", padding: "3px 7px", borderRadius: 6, fontWeight: 600 }}>{p.flash_pno}</span> : <span style={{ fontSize: 11, color: "#cbd5e1" }}>—</span>}</td>
-                    <td style={{ padding: "10px 12px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 20, background: st.bg, color: st.color, fontSize: 11, fontWeight: 600 }}>{st.icon} {st.label}</span></td>
-                    {perm.viewCOD && <td style={{ padding: "10px 12px" }}>{p.cod_enabled ? <span style={{ fontWeight: 700, color: "#d97706" }}>฿{Number(p.cod_amount || 0).toLocaleString()}</span> : <span style={{ fontSize: 11, color: "#cbd5e1" }}>—</span>}</td>}
-                    <td style={{ padding: "10px 12px", fontSize: 11, color: "#64748b" }}>{p.created_by_name || "—"}</td>
-                    <td style={{ padding: "10px 8px" }}><div style={{ display: "flex", gap: 3 }}>
-                      {perm.status && !p.flash_pno && <button title="สร้างเลข Tracking" onClick={() => createFlashOrder(p)} disabled={flashLoading === p.id} style={{ width: 30, height: 30, border: "1px solid #fbbf24", borderRadius: 8, background: flashLoading === p.id ? "#fef3c7" : "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>{flashLoading === p.id ? "⏳" : "⚡"}</button>}
-                      {perm.status && <button title="สถานะ" onClick={() => setStatusParcel(p)} style={{ width: 30, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🔄</button>}
-                      {perm.edit && <button title="แก้ไข" onClick={() => { setEditParcel(p); setShowForm(true); }} style={{ width: 30, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</button>}
-                      {perm.print && <button title="ปริ้น" onClick={() => { setPrintParcel(p); if (!p.label_printed) markPrinted(p); }} style={{ width: 30, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🖨️</button>}
-                      {perm.delete && <button title="ลบ" onClick={() => handleDelete(p)} style={{ width: 30, height: 30, border: "1px solid #fca5a5", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑️</button>}
-                    </div></td>
-                  </tr>); })}</tbody>
-              </table>
-            </div>
-          )}
-          {totalPages > 1 && <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, padding: 12, borderTop: "1px solid #f1f5f9" }}><button disabled={!page} onClick={() => setPage(p => p - 1)} style={{ padding: "6px 14px", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: !page ? "not-allowed" : "pointer", opacity: !page ? .4 : 1 }}>◀</button><span style={{ fontSize: 12, color: "#64748b" }}>{page + 1}/{totalPages}</span><button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} style={{ padding: "6px 14px", border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: page >= totalPages - 1 ? "not-allowed" : "pointer", opacity: page >= totalPages - 1 ? .4 : 1 }}>▶</button></div>}
-        </div>
-      </div>
-      {/* DETAIL */}
+
+      {/* DETAIL MODAL */}
       {viewParcel && <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setViewParcel(null)}><div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 520, width: "95%", maxHeight: "85vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>📦 รายละเอียด</h3><button onClick={() => setViewParcel(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>✕</button></div>
         {[["เลขพัสดุ", viewParcel.parcel_no], ["Tracking", viewParcel.flash_pno || "—"], ["Sort Code", viewParcel.flash_sort_code || "—"], ["สถานะ", `${getStatus(viewParcel.status).icon} ${getStatus(viewParcel.status).label}`], ["── ผู้ส่ง ──", ""], ["ชื่อ", viewParcel.sender_name], ["เบอร์", viewParcel.sender_phone], ["── ผู้รับ ──", ""], ["ชื่อ", viewParcel.receiver_name], ["เบอร์", viewParcel.receiver_phone], ["ที่อยู่", `${viewParcel.receiver_address || ""} ${viewParcel.receiver_subdistrict || ""} ${viewParcel.receiver_district || ""} ${viewParcel.receiver_province || ""} ${viewParcel.receiver_postal || ""}`], ["── พัสดุ ──", ""], ["น้ำหนัก", `${viewParcel.weight || 1} kg`], ["สินค้า", viewParcel.item_desc || "—"], ...(perm.viewCOD ? [["COD", viewParcel.cod_enabled ? `฿${Number(viewParcel.cod_amount || 0).toLocaleString()}` : "ไม่มี"]] : []), ["ผู้สร้าง", viewParcel.created_by_name || "—"], ["สร้างเมื่อ", new Date(viewParcel.created_at).toLocaleString("th-TH")]].map(([l, v], i) => v === "" ? <div key={i} style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", padding: "10px 0 4px", borderBottom: "1px solid #f1f5f9" }}>{l}</div> : <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #f8fafc" }}><span style={{ fontSize: 13, color: "#64748b" }}>{l}</span><span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", textAlign: "right", maxWidth: "60%", wordBreak: "break-word" }}>{v}</span></div>)}
@@ -1063,13 +1153,13 @@ export default function FlashBackend() {
           {perm.print && <button onClick={() => { setPrintParcel(viewParcel); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>🖨️ ปริ้น</button>}
         </div>
       </div></div>}
+
       {/* MODALS */}
       {showForm && <ParcelForm parcel={editParcel} user={user} shops={shops} onClose={() => setShowForm(false)} onSave={() => { setShowForm(false); loadParcels(); }} />}
       {statusParcel && <StatusModal parcel={statusParcel} onClose={() => setStatusParcel(null)} onSave={() => { setStatusParcel(null); loadParcels(); }} />}
       {printParcel && <PrintLabel parcel={printParcel} onClose={() => setPrintParcel(null)} />}
-      {showUsers && <UserManagement onClose={() => setShowUsers(false)} isDemo={isDemo} />}
-      {showImport && <ImportModal user={user} shops={shops} onClose={() => setShowImport(false)} onSave={() => { setShowImport(false); loadParcels(); }} />}
-      {showShops && <ShopManagement onClose={() => setShowShops(false)} onUpdate={loadShops} isDemo={isDemo} />}
+      {showUsers && <UserManagement onClose={() => { setShowUsers(false); setActivePage("parcels"); }} isDemo={isDemo} />}
+      {showShops && <ShopManagement onClose={() => { setShowShops(false); setActivePage("parcels"); }} onUpdate={loadShops} isDemo={isDemo} />}
     </div>
   );
 }
