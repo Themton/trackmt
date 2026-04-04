@@ -71,8 +71,10 @@ const flashApi = {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// SUPABASE CLIENT
+// SUPABASE CLIENT (with Cloudflare Worker fallback)
 // ═══════════════════════════════════════════════════════════════
+let activeBaseUrl = BASE_URL;
+
 const sb = {
   headers: () => ({
     apikey: SUPABASE_ANON_KEY,
@@ -81,15 +83,25 @@ const sb = {
     Prefer: "return=representation",
   }),
   async query(table, { method = "GET", filters = "", body, order } = {}) {
-    let url = `${BASE_URL}/rest/v1/${table}`;
+    let url = `${activeBaseUrl}/rest/v1/${table}`;
     const params = [];
     if (filters) params.push(filters);
     if (order) params.push(`order=${order}`);
     if (method === "GET") params.push("select=*");
     if (params.length) url += `?${params.join("&")}`;
-    const res = await fetch(url, { method, headers: this.headers(), body: body ? JSON.stringify(body) : undefined });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.message || `HTTP ${res.status}`); }
-    return res.json();
+    try {
+      const res = await fetch(url, { method, headers: this.headers(), body: body ? JSON.stringify(body) : undefined });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.message || `HTTP ${res.status}`); }
+      return res.json();
+    } catch (e) {
+      // Fallback: ถ้า Worker ใช้ไม่ได้ → ลองตรง Supabase
+      if (activeBaseUrl !== SUPABASE_URL) {
+        activeBaseUrl = SUPABASE_URL;
+        console.warn("Worker failed, fallback to direct Supabase");
+        return this.query(table, { method, filters, body, order });
+      }
+      throw e;
+    }
   },
   select: (t, o) => sb.query(t, { ...o, method: "GET" }),
   insert: (t, b) => sb.query(t, { method: "POST", body: b }),
@@ -97,7 +109,7 @@ const sb = {
   delete: (t, id) => sb.query(t, { method: "DELETE", filters: `id=eq.${id}` }),
   realtime: (table, cb) => {
     try {
-      const wsUrl = BASE_URL.replace("https://", "wss://").replace("http://", "ws://") + "/realtime/v1/websocket?apikey=" + SUPABASE_ANON_KEY + "&vsn=1.0.0";
+      const wsUrl = SUPABASE_URL.replace("https://", "wss://").replace("http://", "ws://") + "/realtime/v1/websocket?apikey=" + SUPABASE_ANON_KEY + "&vsn=1.0.0";
       const ws = new WebSocket(wsUrl);
       ws.onopen = () => {
         ws.send(JSON.stringify({ topic: `realtime:public:${table}`, event: "phx_join", payload: { config: { broadcast: { self: true }, postgres_changes: [{ event: "*", schema: "public", table }] } }, ref: "1" }));
