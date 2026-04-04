@@ -934,6 +934,7 @@ export default function FlashBackend() {
     setFlashLoading(p.id);
     try {
       const result = await flashApi.createOrder(p);
+      console.log("Flash API response:", JSON.stringify(result));
       if (result.code === 1 && result.data) {
         const updates = {
           flash_pno: result.data.pno || "",
@@ -946,7 +947,7 @@ export default function FlashBackend() {
         alert(`สร้างเลข Tracking สำเร็จ!\n\nTracking: ${updates.flash_pno}\nSort Code: ${updates.flash_sort_code}`);
         loadParcels();
       } else {
-        alert(`Flash API Error:\n${result.message || JSON.stringify(result)}`);
+        alert(`Flash API Error (code: ${result.code}):\n${result.message || ""}\n\nFull response:\n${JSON.stringify(result, null, 2).substring(0, 500)}`);
       }
     } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้:\n" + e.message + "\n\nลองตรวจสอบ:\n1. Cloudflare Worker ใส่โค้ดใหม่หรือยัง\n2. Worker URL ถูกต้องไหม\n3. เปิด Console (F12) ดู error"); }
     setFlashLoading(null);
