@@ -745,7 +745,7 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
       if (i % 5 === 4) await new Promise(r => setTimeout(r, 200));
     }
     setDone(true);
-    setTimeout(() => { alert(`นำเข้าสำเร็จ ${success}/${selected.length} รายการ`); onSave(); }, 300);
+    setTimeout(() => onSave(), 1000);
   };
 
   const toggleRow = (i) => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, _selected: !r._selected } : r));
@@ -1055,6 +1055,8 @@ export default function FlashBackend() {
   // สร้างเลข Tracking Flash Express
   const [flashLoading, setFlashLoading] = useState(null);
   const [globalLoading, setGlobalLoading] = useState(null); // { msg, progress }
+  const [toast, setToast] = useState(null); // { msg, type }
+  const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
   const createFlashOrder = async (p) => {
     if (p.flash_pno) { alert("พัสดุนี้มีเลข Tracking แล้ว: " + p.flash_pno); return; }
     if (!p.receiver_name || !p.receiver_phone) { alert(`❌ ${p.receiver_name}\nกรุณากรอกชื่อและเบอร์ผู้รับก่อน`); return; }
@@ -1074,7 +1076,7 @@ export default function FlashBackend() {
         };
         if (!isDemo) await sb.update("fx_parcels", p.id, updates);
         else setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
-        alert(`สร้างเลข Tracking สำเร็จ!\n\nTracking: ${updates.flash_pno}\nSort Code: ${updates.flash_sort_code}`);
+        showToast(`สร้างเลข Tracking สำเร็จ! ${updates.flash_pno}`);
         loadParcels();
       } else {
         alert(`❌ Flash API Error (code: ${result.code}):\n${result.message || ""}\n${result.data ? "\nรายละเอียด: " + JSON.stringify(result.data) : ""}\n\n📤 ผู้ส่ง: ${p.sender_name || "❌"} | ${p.sender_phone || "❌"}\nที่อยู่ส่ง: ${p.sender_address || "❌"} | ${p.sender_province || "❌"} | ปณ.${p.sender_postal || "❌"}\n\n📥 ผู้รับ: ${p.receiver_name} | ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "❌"} | อำเภอ: ${p.receiver_district || "❌"}\nตำบล: ${p.receiver_subdistrict || "❌"} | ปณ.${p.receiver_postal || "❌"}\nที่อยู่: ${p.receiver_address || "❌"}`);
@@ -1107,7 +1109,7 @@ export default function FlashBackend() {
       if (i % 3 === 2) await new Promise(r => setTimeout(r, 300));
     }
     setGlobalLoading(null);
-    alert(`สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ${errors.length ? "\n\nErrors:\n" + errors.join("\n") : ""}`);
+    showToast(`สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ`);
     setBatchProgress(null);
     setSelectedIds(new Set());
     loadParcels();
@@ -1127,7 +1129,7 @@ export default function FlashBackend() {
       try { if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); } else { await sb.delete("fx_parcels", p.id); } success++; } catch {}
     }
     setGlobalLoading(null);
-    alert(`ลบสำเร็จ ${success}/${targets.length} รายการ`);
+    showToast(`ลบสำเร็จ ${success}/${targets.length} รายการ`);
     setSelectedIds(new Set());
     loadParcels();
   };
@@ -1280,6 +1282,17 @@ export default function FlashBackend() {
           {activePage === "users" && <UsersPage />}
         </div>
       </div>
+
+      {/* TOAST NOTIFICATION */}
+      {toast && (
+        <div style={{ position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)", zIndex: 99999, animation: "slideDown .3s ease" }}>
+          <div style={{ background: toast.type === "error" ? "#dc2626" : "#059669", color: "#fff", padding: "14px 28px", borderRadius: 14, fontSize: 15, fontWeight: 700, boxShadow: "0 8px 30px rgba(0,0,0,.25)", display: "flex", alignItems: "center", gap: 10, fontFamily: "inherit" }}>
+            <span style={{ fontSize: 20 }}>{toast.type === "error" ? "❌" : "✅"}</span>
+            {toast.msg}
+          </div>
+        </div>
+      )}
+      <style>{`@keyframes slideDown { from{opacity:0;transform:translateX(-50%) translateY(-20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }`}</style>
 
       {/* GLOBAL LOADING OVERLAY */}
       {globalLoading && (
