@@ -1,84 +1,48 @@
-// ═══════════════════════════════════════════════════════════════════════
-// Cloudflare Worker — Supabase + Flash Express Proxy
-// ═══════════════════════════════════════════════════════════════════════
-
-const SUPABASE_URL = "https://fnkohtdpwdwedjrtklre.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua29odGRwd2R3ZWRqcnRrbHJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzNTA3MjIsImV4cCI6MjA4ODkyNjcyMn0.AuotNxQWgKiSYpS7kLBMm3jOCFhJWsXy31yaqG6dwic";
-const FLASH_API_URL = "https://open-api.flashexpress.com";
-
-const ALLOWED_ORIGINS = [
-  "http://localhost:5173",
-  "http://localhost:3000",
-  "https://themton.github.io",
-];
+const SB_URL = "https://fnkohtdpwdwedjrtklre.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua29odGRwd2R3ZWRqcnRrbHJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzNTA3MjIsImV4cCI6MjA4ODkyNjcyMn0.AuotNxQWgKiSYpS7kLBMm3jOCFhJWsXy31yaqG6dwic";
+const FLASH_PROD = "https://open-api.flashexpress.com";
+const FLASH_TRA = "https://open-api-tra.flashexpress.com";
 
 export default {
-  async fetch(request, env) {
-    if (request.method === "OPTIONS") return handleCORS(request);
+  async fetch(req) {
+    const origin = req.headers.get("Origin") || "*";
+    const cors = {
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type,apikey,Authorization,Prefer",
+    };
+    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
 
-    const url = new URL(request.url);
+    const url = new URL(req.url);
+    if (url.pathname === "/") return new Response('{"status":"ok"}', { headers: { ...cors, "Content-Type": "application/json" } });
 
-    // Health check
-    if (url.pathname === "/" || url.pathname === "/health") {
-      return new Response(JSON.stringify({ status: "ok", proxy: "supabase-flash-proxy" }), {
-        headers: { "Content-Type": "application/json", ...corsHeaders(request) },
-      });
+    let targetUrl, fetchOpts;
+    const body = ["GET","HEAD"].includes(req.method) ? null : await req.text();
+
+    if (url.pathname.startsWith("/flash-tra/")) {
+      targetUrl = FLASH_TRA + url.pathname.replace("/flash-tra", "");
+      fetchOpts = { method: req.method, headers: { "Content-Type": "application/x-www-form-urlencoded" }, body };
+    } else if (url.pathname.startsWith("/flash/")) {
+      targetUrl = FLASH_PROD + url.pathname.replace("/flash", "");
+      fetchOpts = { method: req.method, headers: { "Content-Type": "application/x-www-form-urlencoded" }, body };
+    } else {
+      targetUrl = SB_URL + url.pathname + url.search;
+      const h = new Headers();
+      h.set("apikey", SB_KEY);
+      h.set("Authorization", "Bearer " + SB_KEY);
+      h.set("Content-Type", "application/json");
+      if (req.headers.get("Prefer")) h.set("Prefer", req.headers.get("Prefer"));
+      fetchOpts = { method: req.method, headers: h, body };
     }
-
-    // Flash Express API Proxy
-    if (url.pathname.startsWith("/flash/")) {
-      const flashPath = url.pathname.replace("/flash", "");
-      const targetUrl = FLASH_API_URL + flashPath;
-      try {
-        const response = await fetch(targetUrl, {
-          method: request.method,
-          headers: { "Content-Type": request.headers.get("Content-Type") || "application/x-www-form-urlencoded" },
-          body: ["GET", "HEAD"].includes(request.method) ? null : await request.text(),
-        });
-        const responseHeaders = new Headers(response.headers);
-        Object.entries(corsHeaders(request)).forEach(([k, v]) => responseHeaders.set(k, v));
-        return new Response(response.body, { status: response.status, headers: responseHeaders });
-      } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 502, headers: { "Content-Type": "application/json", ...corsHeaders(request) },
-        });
-      }
-    }
-
-    // Supabase Proxy
-    const targetUrl = SUPABASE_URL + url.pathname + url.search;
-    const headers = new Headers(request.headers);
-    headers.set("apikey", SUPABASE_ANON_KEY);
-    headers.set("Authorization", `Bearer ${SUPABASE_ANON_KEY}`);
-    headers.delete("host");
 
     try {
-      const response = await fetch(targetUrl, {
-        method: request.method, headers,
-        body: ["GET", "HEAD"].includes(request.method) ? null : await request.text(),
-      });
-      const responseHeaders = new Headers(response.headers);
-      Object.entries(corsHeaders(request)).forEach(([k, v]) => responseHeaders.set(k, v));
-      return new Response(response.body, { status: response.status, headers: responseHeaders });
-    } catch (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 502, headers: { "Content-Type": "application/json", ...corsHeaders(request) },
-      });
+      const res = await fetch(targetUrl, fetchOpts);
+      const respHeaders = new Headers();
+      respHeaders.set("Content-Type", res.headers.get("Content-Type") || "application/json");
+      Object.entries(cors).forEach(([k, v]) => respHeaders.set(k, v));
+      return new Response(res.body, { status: res.status, headers: respHeaders });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: e.message }), { status: 502, headers: { ...cors, "Content-Type": "application/json" } });
     }
-  },
+  }
 };
-
-function corsHeaders(request) {
-  const origin = request.headers.get("Origin") || "";
-  const allowed = ALLOWED_ORIGINS.some(o => origin.startsWith(o)) ? origin : ALLOWED_ORIGINS[0];
-  return {
-    "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, apikey, Authorization, Prefer, Range",
-    "Access-Control-Max-Age": "86400",
-  };
-}
-
-function handleCORS(request) {
-  return new Response(null, { status: 204, headers: corsHeaders(request) });
-}

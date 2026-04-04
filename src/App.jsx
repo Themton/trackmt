@@ -9,11 +9,21 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const BASE_URL = SUPABASE_URL; // ใช้ Supabase ตรง
 
 // ═══════════════════════════════════════════════════════════════
-// FLASH EXPRESS API CONFIG (Production)
+// FLASH EXPRESS API CONFIG
 // ═══════════════════════════════════════════════════════════════
-const FLASH_MCH_ID = "CBC9351";
-const FLASH_API_KEY = "0d0b630e5e245149fe120a062c342b3f41ffaea51597464841e97d324b792334";
-const FLASH_API_URL = "https://upabase-proxy.themtja.workers.dev/flash";
+// Toggle: true = Training (ทดสอบ), false = Production (ใช้งานจริง)
+const FLASH_TRAINING = true;
+
+const FLASH_MCH_ID = FLASH_TRAINING ? "CA5610" : "CBC9351";
+const FLASH_API_KEY = FLASH_TRAINING
+  ? "0bc50ae59546a42fe64dca031005fdb1528486214ec0a4c01551d4f7f762a84c"
+  : "0d0b630e5e245149fe120a062c342b3f41ffaea51597464841e97d324b792334";
+const FLASH_DIRECT_URL = FLASH_TRAINING
+  ? "https://open-api-tra.flashexpress.com"
+  : "https://open-api.flashexpress.com";
+const FLASH_API_URL = FLASH_TRAINING
+  ? "https://upabase-proxy.themtja.workers.dev/flash-tra"
+  : "https://upabase-proxy.themtja.workers.dev/flash";
 
 // Flash Express API Helper
 const flashApi = {
@@ -82,7 +92,7 @@ const flashApi = {
     console.log("Flash API body:", decodeURIComponent(body));
     const urls = [
       `${FLASH_API_URL}/open/v1/orders`,
-      `https://open-api.flashexpress.com/open/v1/orders`,
+      `${FLASH_DIRECT_URL}/open/v1/orders`,
     ];
     for (const url of urls) {
       try {
