@@ -510,13 +510,13 @@ function ParcelForm({ parcel, user, shops, onSave, onClose }) {
   useEffect(() => {
     if (!isEdit && shops?.length) {
       const def = shops.find(s => s.is_default) || shops[0];
-      if (def) setForm(f => ({ ...f, sender_name: def.name || "", sender_phone: def.phone || "", sender_address: def.address || "", sender_province: def.province || "", shop_id: def.id }));
+      if (def) setForm(f => ({ ...f, sender_name: def.name || "", sender_phone: def.phone || "", sender_address: def.address || "", sender_province: def.province || "", sender_postal: def.postal || "", sender_district: def.district || "", sender_subdistrict: def.subdistrict || "", shop_id: def.id }));
     }
   }, [isEdit, shops]);
 
   const selectShop = (shopId) => {
     const shop = shops?.find(s => s.id === shopId);
-    if (shop) setForm(f => ({ ...f, sender_name: shop.name || "", sender_phone: shop.phone || "", sender_address: shop.address || "", sender_province: shop.province || "", shop_id: shop.id }));
+    if (shop) setForm(f => ({ ...f, sender_name: shop.name || "", sender_phone: shop.phone || "", sender_address: shop.address || "", sender_province: shop.province || "", sender_postal: shop.postal || "", sender_district: shop.district || "", sender_subdistrict: shop.subdistrict || "", shop_id: shop.id }));
   };
 
   const handleParseAddress = () => {
@@ -1063,7 +1063,7 @@ export default function FlashBackend() {
     if (p.flash_pno) { alert("พัสดุนี้มีเลข Tracking แล้ว: " + p.flash_pno); return; }
     if (!p.receiver_name || !p.receiver_phone) { alert(`❌ ${p.receiver_name}\nกรุณากรอกชื่อและเบอร์ผู้รับก่อน`); return; }
     if (!p.receiver_province && !p.receiver_postal) { alert(`❌ ${p.receiver_name}\nกรุณากรอกจังหวัดหรือรหัสไปรษณีย์ผู้รับ\n\nกด ✏️ แก้ไข → กรอกที่อยู่ให้ครบ`); return; }
-    if (!confirm(`สร้างเลข Tracking Flash Express\nให้พัสดุ ${p.parcel_no}?\n\nผู้รับ: ${p.receiver_name}\nเบอร์: ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "—"}\nอำเภอ: ${p.receiver_district || "—"}`)) return;
+    if (!confirm(`สร้างเลข Tracking Flash Express?\n\nผู้รับ: ${p.receiver_name}\nเบอร์: ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "—"}\nอำเภอ: ${p.receiver_district || "—"}`)) return;
     setFlashLoading(p.id);
     try {
       const result = await flashApi.createOrder(p);
@@ -1366,7 +1366,7 @@ export default function FlashBackend() {
             {/* STATUS TABS */}
             <div style={{ padding: "0 24px 12px" }}>
               <div style={{ display: "flex", gap: 0, overflowX: "auto", background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0" }}>
-                {[{ key: "ALL", label: "ทั้งหมด", icon: "📋", color: "#475569" }, ...STATUSES].map(s => { const cnt = s.key === "ALL" ? parcels.length : parcels.filter(p => p.status === s.key).length; const active = statusFilter === s.key; return <button key={s.key} onClick={() => { setStatusFilter(s.key); setPage(0); }} style={{ padding: "9px 12px", border: "none", borderBottom: active ? `3px solid ${s.color}` : "3px solid transparent", background: "transparent", color: active ? s.color : cnt ? "#475569" : "#cbd5e1", fontSize: 11, fontWeight: active ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", minWidth: 68 }}>{s.icon} {s.label}{cnt > 0 && <span style={{ marginLeft: 3, background: active ? s.color : "#e2e8f0", color: active ? "#fff" : "#64748b", padding: "1px 5px", borderRadius: 8, fontSize: 10, fontWeight: 700 }}>{cnt}</span>}</button>; })}
+                {[{ key: "ALL", label: "ทั้งหมด", icon: "📋", color: "#475569" }, ...STATUSES].map(s => { const cnt = s.key === "ALL" ? statsData.length : statsData.filter(p => p.status === s.key).length; const active = statusFilter === s.key; return <button key={s.key} onClick={() => { setStatusFilter(s.key); setPage(0); }} style={{ padding: "9px 12px", border: "none", borderBottom: active ? `3px solid ${s.color}` : "3px solid transparent", background: "transparent", color: active ? s.color : cnt ? "#475569" : "#cbd5e1", fontSize: 11, fontWeight: active ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", minWidth: 68 }}>{s.icon} {s.label}{cnt > 0 && <span style={{ marginLeft: 3, background: active ? s.color : "#e2e8f0", color: active ? "#fff" : "#64748b", padding: "1px 5px", borderRadius: 8, fontSize: 10, fontWeight: 700 }}>{cnt}</span>}</button>; })}
               </div>
             </div>
 
