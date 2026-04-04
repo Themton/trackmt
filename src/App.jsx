@@ -837,7 +837,11 @@ function StatusModal({ parcel, onSave, onClose }) {
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════
 export default function FlashBackend() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try { const s = sessionStorage.getItem("fx_user"); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const handleLogin = (u) => { setUser(u); try { sessionStorage.setItem("fx_user", JSON.stringify(u)); } catch {} };
+  const handleLogout = () => { setUser(null); setParcels([]); try { sessionStorage.removeItem("fx_user"); } catch {} };
   const [parcels, setParcels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -920,7 +924,7 @@ export default function FlashBackend() {
     setFlashLoading(null);
   };
 
-  if (!user) return <LoginScreen onLogin={setUser} isDemo={isDemo} />;
+  if (!user) return <LoginScreen onLogin={handleLogin} isDemo={isDemo} />;
   const role = ROLES[user.role] || ROLES.shipping;
 
   return (
@@ -943,7 +947,7 @@ export default function FlashBackend() {
               {perm.create && <button onClick={() => setShowShops(true)} style={{ padding: "8px 14px", background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>🏪</button>}
               {perm.create && <button onClick={() => setShowImport(true)} style={{ padding: "8px 14px", background: "rgba(16,185,129,.8)", border: "none", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📥 Import</button>}
               {perm.create && <button onClick={() => { setEditParcel(null); setShowForm(true); }} style={{ padding: "8px 16px", background: "#e53e3e", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>＋ สร้างพัสดุ</button>}
-              <button onClick={() => { setUser(null); setParcels([]); }} style={{ padding: "8px 14px", background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 10, color: "#f87171", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>🚪</button>
+              <button onClick={handleLogout} style={{ padding: "8px 14px", background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 10, color: "#f87171", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>🚪</button>
             </div>
           </div>
           {isDemo && <div style={{ marginTop: 10, padding: "8px 14px", background: "rgba(251,191,36,.12)", border: "1px solid rgba(251,191,36,.25)", borderRadius: 10, fontSize: 12, color: "#fbbf24" }}>⚠️ Demo — {role.icon} {user.display_name} ({role.label})</div>}
