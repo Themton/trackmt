@@ -729,7 +729,7 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
           sender_name: shop?.name || "", sender_phone: shop?.phone || "", sender_address: shop?.address || "",
           sender_province: shop?.province || "", sender_district: shop?.district || "",
           sender_subdistrict: shop?.subdistrict || "", sender_postal: shop?.postal || "",
-          receiver_name: r.receiver_name, receiver_phone: r.receiver_phone, receiver_address: r.receiver_address,
+          receiver_name: r.receiver_name, receiver_phone: r.receiver_phone, receiver_address: r.receiver_address || "-",
           receiver_subdistrict: r.receiver_subdistrict, receiver_district: r.receiver_district,
           receiver_province: r.receiver_province || "", receiver_postal: r.receiver_postal,
           weight: 1, quantity: 1, item_desc: r.item_desc || "",
@@ -739,12 +739,13 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
         };
         await sb.insert("fx_parcels", parcelData);
         success++;
-      } catch {}
+      } catch (err) { console.warn("Import failed:", r.receiver_name, err.message); }
       setProgress(Math.round(((i + 1) / selected.length) * 100));
-      // Small delay to avoid rate limit
       if (i % 5 === 4) await new Promise(r => setTimeout(r, 200));
     }
     setDone(true);
+    const failed = selected.length - success;
+    if (failed > 0) alert(`นำเข้าสำเร็จ ${success}/${selected.length} รายการ\n\n${failed} รายการล้มเหลว — ตรวจสอบข้อมูลในไฟล์`);
     setTimeout(() => onSave(), 1000);
   };
 
@@ -1003,9 +1004,6 @@ export default function FlashBackend() {
   const [statusParcel, setStatusParcel] = useState(null);
   const [printParcel, setPrintParcel] = useState(null);
   const [viewParcel, setViewParcel] = useState(null);
-  const [showUsers, setShowUsers] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [showShops, setShowShops] = useState(false);
   const [shops, setShops] = useState([]);
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -1464,8 +1462,6 @@ export default function FlashBackend() {
       {showForm && <ParcelForm parcel={editParcel} user={user} shops={shops} onClose={() => setShowForm(false)} onSave={() => { setShowForm(false); loadParcels(); }} />}
       {statusParcel && <StatusModal parcel={statusParcel} onClose={() => setStatusParcel(null)} onSave={() => { setStatusParcel(null); loadParcels(); }} />}
       {printParcel && <PrintLabel parcel={printParcel} onClose={() => setPrintParcel(null)} />}
-      {showUsers && <UserManagement onClose={() => { setShowUsers(false); setActivePage("parcels"); }} isDemo={isDemo} />}
-      {showShops && <ShopManagement onClose={() => { setShowShops(false); setActivePage("parcels"); }} onUpdate={loadShops} isDemo={isDemo} />}
     </div>
   );
 }
