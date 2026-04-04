@@ -570,11 +570,13 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
       const wb = XLSX.read(buf);
       const ws = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-      // Find header row (look for "MobileNo" or "เบอร์มือถือ")
+      // Find header row — row that has values in multiple columns (not just col 0)
       let headerIdx = 0;
       for (let i = 0; i < Math.min(5, data.length); i++) {
-        const row = data[i].map(String).join("|").toLowerCase();
-        if (row.includes("mobile") || row.includes("เบอร์") || row.includes("name")) { headerIdx = i; break; }
+        const row = data[i];
+        const filledCols = row.filter((v, j) => j > 0 && v && String(v).trim()).length;
+        const rowText = row.map(String).join("|").toLowerCase();
+        if (filledCols >= 3 && (rowText.includes("mobile") || rowText.includes("name") || rowText.includes("ชื่อ"))) { headerIdx = i; break; }
       }
       const parsed = [];
       for (let i = headerIdx + 1; i < data.length; i++) {
