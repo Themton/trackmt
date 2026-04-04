@@ -6,7 +6,7 @@ import ADDR_DB from "./addr.js";
 // ═══════════════════════════════════════════════════════════════
 const SUPABASE_URL = "https://fnkohtdpwdwedjrtklre.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua29odGRwd2R3ZWRqcnRrbHJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzNTA3MjIsImV4cCI6MjA4ODkyNjcyMn0.AuotNxQWgKiSYpS7kLBMm3jOCFhJWsXy31yaqG6dwic";
-const BASE_URL = "https://upabase-proxy.themtja.workers.dev";
+const BASE_URL = SUPABASE_URL; // ใช้ Supabase ตรง
 
 // ═══════════════════════════════════════════════════════════════
 // FLASH EXPRESS API CONFIG (Production)
@@ -96,25 +96,15 @@ const sb = {
     Prefer: "return=representation",
   }),
   async query(table, { method = "GET", filters = "", body, order } = {}) {
-    let url = `${activeBaseUrl}/rest/v1/${table}`;
+    let url = `${SUPABASE_URL}/rest/v1/${table}`;
     const params = [];
     if (filters) params.push(filters);
     if (order) params.push(`order=${order}`);
     if (method === "GET") params.push("select=*");
     if (params.length) url += `?${params.join("&")}`;
-    try {
-      const res = await fetch(url, { method, headers: this.headers(), body: body ? JSON.stringify(body) : undefined });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.message || `HTTP ${res.status}`); }
-      return res.json();
-    } catch (e) {
-      // Fallback: ถ้า Worker ใช้ไม่ได้ → ลองตรง Supabase
-      if (activeBaseUrl !== SUPABASE_URL) {
-        activeBaseUrl = SUPABASE_URL;
-        console.warn("Worker failed, fallback to direct Supabase");
-        return this.query(table, { method, filters, body, order });
-      }
-      throw e;
-    }
+    const res = await fetch(url, { method, headers: this.headers(), body: body ? JSON.stringify(body) : undefined });
+    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.message || `HTTP ${res.status}`); }
+    return res.json();
   },
   select: (t, o) => sb.query(t, { ...o, method: "GET" }),
   insert: (t, b) => sb.query(t, { method: "POST", body: b }),
