@@ -24,23 +24,36 @@ const flashApi = {
     return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
   },
   async createOrder(parcel) {
+    // Validate required fields
+    const missing = [];
+    if (!parcel.sender_name) missing.push("ชื่อผู้ส่ง");
+    if (!parcel.sender_phone) missing.push("เบอร์ผู้ส่ง");
+    if (!parcel.receiver_name) missing.push("ชื่อผู้รับ");
+    if (!parcel.receiver_phone) missing.push("เบอร์ผู้รับ");
+    if (!parcel.receiver_province) missing.push("จังหวัดผู้รับ");
+    if (!parcel.receiver_district) missing.push("อำเภอผู้รับ");
+    if (!parcel.receiver_postal) missing.push("รหัสไปรษณีย์ผู้รับ");
+    if (missing.length) throw new Error("ข้อมูลไม่ครบ:\n" + missing.join(", ") + "\n\nกด ✏️ แก้ไข กรอกข้อมูลให้ครบก่อน");
+
     const params = {
       mchId: FLASH_MCH_ID,
       nonceStr: String(Date.now()) + Math.random().toString(36).substring(2, 8),
       outTradeNo: parcel.parcel_no,
       expressCategory: parcel.cod_enabled ? "1" : "0",
-      srcName: parcel.sender_name || "",
-      srcPhone: parcel.sender_phone || "",
+      srcName: parcel.sender_name,
+      srcPhone: parcel.sender_phone,
       srcProvinceName: parcel.sender_province || "",
-      srcDetailAddress: parcel.sender_address || "",
+      srcCityName: parcel.sender_district || "",
+      srcDistrictName: parcel.sender_subdistrict || "",
+      srcDetailAddress: parcel.sender_address || parcel.sender_name,
       srcPostalCode: parcel.sender_postal || "",
-      dstName: parcel.receiver_name || "",
-      dstPhone: parcel.receiver_phone || "",
-      dstProvinceName: parcel.receiver_province || "",
-      dstCityName: parcel.receiver_district || "",
+      dstName: parcel.receiver_name,
+      dstPhone: parcel.receiver_phone,
+      dstProvinceName: parcel.receiver_province,
+      dstCityName: parcel.receiver_district,
       dstDistrictName: parcel.receiver_subdistrict || "",
-      dstDetailAddress: `${parcel.receiver_address || ""} ${parcel.receiver_subdistrict || ""} ${parcel.receiver_district || ""} ${parcel.receiver_province || ""}`.trim(),
-      dstPostalCode: parcel.receiver_postal || "",
+      dstDetailAddress: `${parcel.receiver_address || ""} ${parcel.receiver_subdistrict || ""} ${parcel.receiver_district || ""} ${parcel.receiver_province || ""}`.trim() || parcel.receiver_name,
+      dstPostalCode: parcel.receiver_postal,
       articleCategory: "1",
       weight: String(Math.max(1, Math.round((parcel.weight || 1) * 1000))),
     };
@@ -48,7 +61,9 @@ const flashApi = {
       params.codEnabled = "1";
       params.codAmount = String(Math.round(parcel.cod_amount * 100));
     }
-    Object.keys(params).forEach(k => { if (params[k] === "" || params[k] === undefined || params[k] === null) delete params[k]; });
+    // Remove ONLY truly empty optional fields, keep required
+    const optional = ["srcProvinceName","srcCityName","srcDistrictName","srcDetailAddress","srcPostalCode","dstDistrictName","expressCategory"];
+    Object.keys(params).forEach(k => { if (optional.includes(k) && (params[k] === "" || params[k] === undefined || params[k] === null)) delete params[k]; });
     console.log("Flash API params (before sign):", JSON.stringify(params, null, 2));
     params.sign = await this.sign(params);
 
@@ -642,9 +657,12 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
         const parcelData = {
           parcel_no: generateParcelNo(),
           status: "draft",
-          sender_name: shop?.name || "", sender_phone: shop?.phone || "", sender_address: shop?.address || "", sender_province: shop?.province || "",
+          sender_name: shop?.name || "", sender_phone: shop?.phone || "", sender_address: shop?.address || "",
+          sender_province: shop?.province || "", sender_district: shop?.district || "",
+          sender_subdistrict: shop?.subdistrict || "", sender_postal: shop?.postal || "",
           receiver_name: r.receiver_name, receiver_phone: r.receiver_phone, receiver_address: r.receiver_address,
-          receiver_subdistrict: r.receiver_subdistrict, receiver_district: r.receiver_district, receiver_province: r.receiver_province || "", receiver_postal: r.receiver_postal,
+          receiver_subdistrict: r.receiver_subdistrict, receiver_district: r.receiver_district,
+          receiver_province: r.receiver_province || "", receiver_postal: r.receiver_postal,
           weight: 1, quantity: 1, item_desc: r.item_desc || "",
           cod_enabled: r.cod_enabled, cod_amount: r.cod_amount || 0,
           remark: r.remark || "",
