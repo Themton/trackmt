@@ -8,6 +8,68 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const BASE_URL = SUPABASE_URL;
 
 // ═══════════════════════════════════════════════════════════════
+// FLASH EXPRESS API CONFIG (Production)
+// ═══════════════════════════════════════════════════════════════
+const FLASH_MCH_ID = "CBC9351";
+const FLASH_API_KEY = "0d0b630e5e245149fe120a062c342b3f41ffaea51597464841e97d324b792334";
+const FLASH_API_URL = "https://open-api.flashexpress.com";
+
+// Flash Express API Helper
+const flashApi = {
+  generateNonce: () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let result = "";
+    for (let i = 0; i < 32; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+    return result;
+  },
+  async sign(params) {
+    const sorted = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join("&");
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey("raw", enc.encode(FLASH_API_KEY), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const sig = await crypto.subtle.sign("HMAC", enc.encode(sorted), key);
+    return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+  },
+  async createOrder(parcel) {
+    const nonceStr = this.generateNonce();
+    const params = {
+      mchId: FLASH_MCH_ID,
+      nonceStr,
+      outTradeNo: parcel.parcel_no,
+      expressCategory: parcel.cod_enabled ? 1 : 0,
+      srcName: parcel.sender_name || "",
+      srcPhone: parcel.sender_phone || "",
+      srcProvinceName: parcel.sender_province || "",
+      srcDetailAddress: parcel.sender_address || "",
+      srcPostalCode: parcel.sender_postal || "",
+      dstName: parcel.receiver_name || "",
+      dstPhone: parcel.receiver_phone || "",
+      dstProvinceName: parcel.receiver_province || "",
+      dstDistrictName: parcel.receiver_district || "",
+      dstDetailAddress: `${parcel.receiver_address || ""} ${parcel.receiver_subdistrict || ""} ${parcel.receiver_district || ""} ${parcel.receiver_province || ""}`.trim(),
+      dstPostalCode: parcel.receiver_postal || "",
+      articleCategory: 1,
+      weight: Math.max(1, Math.round((parcel.weight || 1) * 1000)),
+      insured: parcel.cod_enabled ? 1 : 0,
+    };
+    if (parcel.cod_enabled && parcel.cod_amount > 0) {
+      params.codEnabled = 1;
+      params.codAmount = String(Math.round(parcel.cod_amount * 100));
+    }
+    // Remove empty values
+    Object.keys(params).forEach(k => { if (params[k] === "" || params[k] === undefined) delete params[k]; });
+    const sign = await this.sign(params);
+    params.sign = sign;
+
+    const res = await fetch(`${FLASH_API_URL}/open/v3/orders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(params).toString(),
+    });
+    return res.json();
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════
 // SUPABASE CLIENT
 // ═══════════════════════════════════════════════════════════════
 const sb = {
@@ -445,6 +507,33 @@ export default function FlashBackend() {
   const handleDelete = async (p) => { if (!confirm(`ลบ ${p.parcel_no}?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); loadParcels(); } catch (e) { alert(e.message); } };
   const markPrinted = async (p) => { if (isDemo) { setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: true } : x)); return; } try { await sb.update("fx_parcels", p.id, { label_printed: true, label_printed_at: new Date().toISOString() }); loadParcels(); } catch {} };
 
+  // สร้างเลข Tracking Flash Express
+  const [flashLoading, setFlashLoading] = useState(null);
+  const createFlashOrder = async (p) => {
+    if (p.flash_pno) { alert("พัสดุนี้มีเลข Tracking แล้ว: " + p.flash_pno); return; }
+    if (!p.receiver_name || !p.receiver_phone) { alert("กรุณากรอกข้อมูลผู้รับก่อน"); return; }
+    if (!confirm(`สร้างเลข Tracking Flash Express\nให้พัสดุ ${p.parcel_no}?`)) return;
+    setFlashLoading(p.id);
+    try {
+      const result = await flashApi.createOrder(p);
+      if (result.code === 1 && result.data) {
+        const updates = {
+          flash_pno: result.data.pno || "",
+          flash_sort_code: result.data.sortCode || result.data.dstStoreName || "",
+          flash_api_response: result.data,
+          status: "created",
+        };
+        if (!isDemo) await sb.update("fx_parcels", p.id, updates);
+        else setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
+        alert(`สร้างเลข Tracking สำเร็จ!\n\nTracking: ${updates.flash_pno}\nSort Code: ${updates.flash_sort_code}`);
+        loadParcels();
+      } else {
+        alert(`Flash API Error:\n${result.message || JSON.stringify(result)}`);
+      }
+    } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้: " + e.message); }
+    setFlashLoading(null);
+  };
+
   if (!user) return <LoginScreen onLogin={setUser} isDemo={isDemo} />;
   const role = ROLES[user.role] || ROLES.shipping;
 
@@ -499,6 +588,7 @@ export default function FlashBackend() {
                     {perm.viewCOD && <td style={{ padding: "10px 12px" }}>{p.cod_enabled ? <span style={{ fontWeight: 700, color: "#d97706" }}>฿{Number(p.cod_amount || 0).toLocaleString()}</span> : <span style={{ fontSize: 11, color: "#cbd5e1" }}>—</span>}</td>}
                     <td style={{ padding: "10px 12px", fontSize: 11, color: "#64748b" }}>{p.created_by_name || "—"}</td>
                     <td style={{ padding: "10px 8px" }}><div style={{ display: "flex", gap: 3 }}>
+                      {perm.status && !p.flash_pno && <button title="สร้างเลข Tracking" onClick={() => createFlashOrder(p)} disabled={flashLoading === p.id} style={{ width: 30, height: 30, border: "1px solid #fbbf24", borderRadius: 8, background: flashLoading === p.id ? "#fef3c7" : "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>{flashLoading === p.id ? "⏳" : "⚡"}</button>}
                       {perm.status && <button title="สถานะ" onClick={() => setStatusParcel(p)} style={{ width: 30, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🔄</button>}
                       {perm.edit && <button title="แก้ไข" onClick={() => { setEditParcel(p); setShowForm(true); }} style={{ width: 30, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</button>}
                       {perm.print && <button title="ปริ้น" onClick={() => { setPrintParcel(p); if (!p.label_printed) markPrinted(p); }} style={{ width: 30, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🖨️</button>}
