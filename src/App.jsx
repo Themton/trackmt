@@ -49,9 +49,11 @@ const flashApi = {
       params.codAmount = String(Math.round(parcel.cod_amount * 100));
     }
     Object.keys(params).forEach(k => { if (params[k] === "" || params[k] === undefined || params[k] === null) delete params[k]; });
+    console.log("Flash API params (before sign):", JSON.stringify(params, null, 2));
     params.sign = await this.sign(params);
 
     const body = new URLSearchParams(params).toString();
+    console.log("Flash API body:", decodeURIComponent(body));
     const urls = [
       `${FLASH_API_URL}/open/v1/orders`,
       `https://open-api.flashexpress.com/open/v1/orders`,
@@ -969,7 +971,7 @@ export default function FlashBackend() {
         alert(`สร้างเลข Tracking สำเร็จ!\n\nTracking: ${updates.flash_pno}\nSort Code: ${updates.flash_sort_code}`);
         loadParcels();
       } else {
-        alert(`Flash API Error (code: ${result.code}):\n${result.message || ""}\n\nFull response:\n${JSON.stringify(result, null, 2).substring(0, 500)}`);
+        alert(`Flash API Error (code: ${result.code}):\n${result.message || ""}\n\nข้อมูลที่ส่ง:\nผู้ส่ง: ${p.sender_name || "❌ ไม่มี"} ${p.sender_phone || "❌ ไม่มี"}\nผู้รับ: ${p.receiver_name} ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "❌ ไม่มี"}\nอำเภอ: ${p.receiver_district || "❌ ไม่มี"}\nตำบล: ${p.receiver_subdistrict || "❌ ไม่มี"}\nไปรษณีย์: ${p.receiver_postal || "❌ ไม่มี"}\nที่อยู่: ${p.receiver_address || "❌ ไม่มี"}`);
       }
     } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้:\n" + e.message + "\n\nลองตรวจสอบ:\n1. Cloudflare Worker ใส่โค้ดใหม่หรือยัง\n2. Worker URL ถูกต้องไหม\n3. เปิด Console (F12) ดู error"); }
     setFlashLoading(null);
@@ -1133,12 +1135,12 @@ export default function FlashBackend() {
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                       <thead><tr style={{ background: "#f8fafc" }}>
                         {perm.status && <th style={{ padding: "10px 8px", width: 36, borderBottom: "1px solid #e2e8f0" }}><input type="checkbox" checked={paged.length > 0 && paged.every(p => selectedIds.has(p.id))} onChange={toggleSelectAll} style={{ cursor: "pointer" }} /></th>}
-                        {["เลขพัสดุ", "ผู้รับ", "จังหวัด", "Tracking", "สถานะ", ...(perm.viewCOD ? ["COD"] : []), "ผู้สร้าง", "จัดการ"].map((h, i) => <th key={i} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+                        {["ผู้รับ", "เบอร์", "จังหวัด", "Tracking", "สถานะ", ...(perm.viewCOD ? ["COD"] : []), "ผู้สร้าง", "จัดการ"].map((h, i) => <th key={i} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
                       <tbody>{paged.map((p, i) => { const st = getStatus(p.status); return (
                         <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedIds.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
                           {perm.status && <td style={{ padding: "10px 8px", textAlign: "center" }}><input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} style={{ cursor: "pointer" }} /></td>}
-                          <td style={{ padding: "10px 12px" }}><div style={{ cursor: "pointer", fontFamily: "monospace", fontWeight: 600, fontSize: 12 }} onClick={() => setViewParcel(p)}>{p.parcel_no}</div><div style={{ fontSize: 10, color: "#94a3b8" }}>{new Date(p.created_at).toLocaleDateString("th-TH", { day: "2-digit", month: "short" })}</div></td>
-                          <td style={{ padding: "10px 12px" }}><div style={{ fontWeight: 600 }}>{p.receiver_name}</div><div style={{ fontSize: 11, color: "#94a3b8" }}>{p.receiver_phone}</div></td>
+                          <td style={{ padding: "10px 12px" }}><div style={{ fontWeight: 600, cursor: "pointer" }} onClick={() => setViewParcel(p)}>{p.receiver_name}</div><div style={{ fontSize: 10, color: "#94a3b8" }}>{new Date(p.created_at).toLocaleDateString("th-TH", { day: "2-digit", month: "short" })}</div></td>
+                          <td style={{ padding: "10px 12px", fontSize: 12, color: "#475569", fontFamily: "monospace" }}>{p.receiver_phone}</td>
                           <td style={{ padding: "10px 12px", fontSize: 12, color: "#64748b" }}>{p.receiver_province || "—"}</td>
                           <td style={{ padding: "10px 12px" }}>{p.flash_pno ? <span style={{ fontFamily: "monospace", fontSize: 11, background: "#eef2ff", color: "#4f46e5", padding: "3px 7px", borderRadius: 6, fontWeight: 600 }}>{p.flash_pno}</span> : <span style={{ fontSize: 11, color: "#cbd5e1" }}>—</span>}</td>
                           <td style={{ padding: "10px 12px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 20, background: st.bg, color: st.color, fontSize: 11, fontWeight: 600 }}>{st.icon} {st.label}</span></td>
