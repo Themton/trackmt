@@ -417,7 +417,7 @@ function PrintLabel({ parcel, onClose }) {
             <div style={{ display: "flex", flex: 1, padding: "0.5mm 2mm" }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: "8pt", fontWeight: 800 }}>ผู้รับ {parcel.receiver_name}</div>
-                <div style={{ fontSize: "11pt", fontWeight: 900, fontFamily: "monospace" }}>{parcel.receiver_phone}</div>
+                <div style={{ fontSize: "11pt", fontWeight: 900, fontFamily: "monospace" }}>{(parcel.receiver_phone || "").replace(/^(\d{3})\d{4}(\d{3})$/, "$1****$2")}</div>
                 <div style={{ fontSize: "6pt", lineHeight: 1.3, marginTop: "0.5mm" }}>
                   {parcel.receiver_address}<br/>
                   {parcel.receiver_subdistrict}{parcel.receiver_subdistrict ? ", " : ""}{parcel.receiver_district}<br/>
