@@ -33,23 +33,29 @@ const flashApi = {
     if (!parcel.receiver_province) missing.push("จังหวัดผู้รับ");
     if (!parcel.receiver_district) missing.push("อำเภอผู้รับ");
     if (!parcel.receiver_postal) missing.push("รหัสไปรษณีย์ผู้รับ");
-    if (missing.length) throw new Error("ข้อมูลไม่ครบ:\n" + missing.join(", ") + "\n\nกด ✏️ แก้ไข กรอกข้อมูลให้ครบก่อน");
+    if (missing.length) throw new Error("ข้อมูลไม่ครบ:\n" + missing.join(", "));
+
+    // Map province — Flash ใช้ "กรุงเทพ" ไม่ใช่ "กรุงเทพมหานคร"
+    const mapProv = (p) => (p === "กรุงเทพมหานคร" ? "กรุงเทพ" : p);
+
+    // outTradeNo ต้องไม่ซ้ำ + ไม่มีอักขระพิเศษ
+    const uniqueId = parcel.parcel_no.replace(/[^a-zA-Z0-9]/g, "") + Date.now().toString(36);
 
     const params = {
       mchId: FLASH_MCH_ID,
       nonceStr: String(Date.now()) + Math.random().toString(36).substring(2, 8),
-      outTradeNo: parcel.parcel_no,
+      outTradeNo: uniqueId,
       expressCategory: parcel.cod_enabled ? "1" : "0",
       srcName: parcel.sender_name,
       srcPhone: parcel.sender_phone,
-      srcProvinceName: parcel.sender_province || "",
+      srcProvinceName: mapProv(parcel.sender_province || ""),
       srcCityName: parcel.sender_district || "",
       srcDistrictName: parcel.sender_subdistrict || "",
       srcDetailAddress: parcel.sender_address || parcel.sender_name,
       srcPostalCode: parcel.sender_postal || "",
       dstName: parcel.receiver_name,
       dstPhone: parcel.receiver_phone,
-      dstProvinceName: parcel.receiver_province,
+      dstProvinceName: mapProv(parcel.receiver_province),
       dstCityName: parcel.receiver_district,
       dstDistrictName: parcel.receiver_subdistrict || "",
       dstDetailAddress: `${parcel.receiver_address || ""} ${parcel.receiver_subdistrict || ""} ${parcel.receiver_district || ""} ${parcel.receiver_province || ""}`.trim() || parcel.receiver_name,
@@ -61,9 +67,10 @@ const flashApi = {
       params.codEnabled = "1";
       params.codAmount = String(Math.round(parcel.cod_amount * 100));
     }
-    // Remove ONLY truly empty optional fields, keep required
-    const optional = ["srcProvinceName","srcCityName","srcDistrictName","srcDetailAddress","srcPostalCode","dstDistrictName","expressCategory"];
-    Object.keys(params).forEach(k => { if (optional.includes(k) && (params[k] === "" || params[k] === undefined || params[k] === null)) delete params[k]; });
+    // Remove empty optional fields + expressCategory "0"
+    const optional = ["srcProvinceName","srcCityName","srcDistrictName","srcDetailAddress","srcPostalCode","dstDistrictName"];
+    Object.keys(params).forEach(k => { if (optional.includes(k) && (!params[k] || params[k] === "")) delete params[k]; });
+    if (params.expressCategory === "0") delete params.expressCategory;
     console.log("Flash API params (before sign):", JSON.stringify(params, null, 2));
     params.sign = await this.sign(params);
 
@@ -995,7 +1002,7 @@ export default function FlashBackend() {
         alert(`สร้างเลข Tracking สำเร็จ!\n\nTracking: ${updates.flash_pno}\nSort Code: ${updates.flash_sort_code}`);
         loadParcels();
       } else {
-        alert(`Flash API Error (code: ${result.code}):\n${result.message || ""}\n\nข้อมูลที่ส่ง:\nผู้ส่ง: ${p.sender_name || "❌ ไม่มี"} ${p.sender_phone || "❌ ไม่มี"}\nผู้รับ: ${p.receiver_name} ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "❌ ไม่มี"}\nอำเภอ: ${p.receiver_district || "❌ ไม่มี"}\nตำบล: ${p.receiver_subdistrict || "❌ ไม่มี"}\nไปรษณีย์: ${p.receiver_postal || "❌ ไม่มี"}\nที่อยู่: ${p.receiver_address || "❌ ไม่มี"}`);
+        alert(`❌ Flash API Error (code: ${result.code}):\n${result.message || ""}\n${result.data ? "\nรายละเอียด: " + JSON.stringify(result.data) : ""}\n\n📤 ผู้ส่ง: ${p.sender_name || "❌"} | ${p.sender_phone || "❌"}\nที่อยู่ส่ง: ${p.sender_address || "❌"} | ${p.sender_province || "❌"} | ปณ.${p.sender_postal || "❌"}\n\n📥 ผู้รับ: ${p.receiver_name} | ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "❌"} | อำเภอ: ${p.receiver_district || "❌"}\nตำบล: ${p.receiver_subdistrict || "❌"} | ปณ.${p.receiver_postal || "❌"}\nที่อยู่: ${p.receiver_address || "❌"}`);
       }
     } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้:\n" + e.message + "\n\nลองตรวจสอบ:\n1. Cloudflare Worker ใส่โค้ดใหม่หรือยัง\n2. Worker URL ถูกต้องไหม\n3. เปิด Console (F12) ดู error"); }
     setFlashLoading(null);
