@@ -1010,6 +1010,7 @@ export default function FlashBackend() {
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [activePage, setActivePage] = useState("parcels");
+  const [selectedShopFilter, setSelectedShopFilter] = useState("");
   const PER_PAGE = 20;
   const isDemo = SUPABASE_URL.includes("YOUR_PROJECT");
   const perm = user ? (CAN[user.role] || {}) : {};
@@ -1040,14 +1041,16 @@ export default function FlashBackend() {
 
   const filtered = useMemo(() => {
     let list = parcels;
+    if (selectedShopFilter) list = list.filter(p => p.shop_id === selectedShopFilter);
     if (statusFilter !== "ALL") list = list.filter(p => p.status === statusFilter);
     if (search) { const q = search.toLowerCase(); list = list.filter(p => [p.parcel_no, p.receiver_name, p.receiver_phone, p.flash_pno, p.receiver_province, p.created_by_name].some(v => (v || "").toLowerCase().includes(q))); }
     return list;
-  }, [parcels, statusFilter, search]);
+  }, [parcels, statusFilter, search, selectedShopFilter]);
 
   const paged = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
-  const stats = useMemo(() => ({ total: parcels.length, draft: parcels.filter(p => p.status === "draft").length, inTransit: parcels.filter(p => ["in_transit", "out_for_delivery", "picked_up", "waiting_pickup"].includes(p.status)).length, delivered: parcels.filter(p => p.status === "delivered").length, problems: parcels.filter(p => ["returned", "failed", "cancelled"].includes(p.status)).length, codTotal: parcels.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [parcels]);
+  const statsData = useMemo(() => { const list = selectedShopFilter ? parcels.filter(p => p.shop_id === selectedShopFilter) : parcels; return list; }, [parcels, selectedShopFilter]);
+  const stats = useMemo(() => ({ total: statsData.length, draft: statsData.filter(p => p.status === "draft").length, inTransit: statsData.filter(p => ["in_transit", "out_for_delivery", "picked_up", "waiting_pickup"].includes(p.status)).length, delivered: statsData.filter(p => p.status === "delivered").length, problems: statsData.filter(p => ["returned", "failed", "cancelled"].includes(p.status)).length, codTotal: statsData.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [statsData]);
 
   const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); loadParcels(); } catch (e) { alert(e.message); } };
   const markPrinted = async (p) => { if (isDemo) { setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: true } : x)); return; } try { await sb.update("fx_parcels", p.id, { label_printed: true, label_printed_at: new Date().toISOString() }); loadParcels(); } catch {} };
@@ -1212,6 +1215,10 @@ export default function FlashBackend() {
               <button onClick={async () => { try { const r = await flashApi.ping(); alert("Flash API Ping:\n" + JSON.stringify(r, null, 2)); } catch(e) { alert("Ping failed: " + e.message); }}} style={{ padding: "9px 14px", background: "#fef3c7", border: "1.5px solid #fbbf24", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>⚡ Test</button>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
+              {shops?.length > 0 && <select value={selectedShopFilter} onChange={e => { setSelectedShopFilter(e.target.value); setPage(0); }} style={{ padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontFamily: "inherit", fontWeight: 600, color: selectedShopFilter ? "#dc2626" : "#64748b", minWidth: 120 }}>
+                <option value="">🏪 ทุกร้าน</option>
+                {shops.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>}
               {perm.create && <button onClick={() => { setEditParcel(null); setShowForm(true); }} style={{ padding: "9px 18px", background: "#dc2626", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>＋ สร้างพัสดุ</button>}
             </div>
           </div>
