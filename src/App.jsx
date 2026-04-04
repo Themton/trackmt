@@ -585,16 +585,35 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
         const address = String(r[2] || "");
         const subdistrict = String(r[3] || "");
         const district = String(r[4] || "");
-        const postal = String(r[5] || "");
+        const postal = String(r[5] || "").replace(/[^0-9]/g, "");
         const codAmount = parseFloat(r[10]) || 0;
         const remark = String(r[11] || "");
         if (!phone && !name) continue;
+
+        // Auto-fill province from postal code
+        let province = "";
+        let autoDistrict = district;
+        let autoSubdistrict = subdistrict;
+        if (postal && ADDR_DB[postal]) {
+          const addrList = ADDR_DB[postal];
+          province = addrList[0]?.p || "";
+          // Try to match district/subdistrict
+          if (!autoDistrict && addrList.length === 1) autoDistrict = addrList[0].d;
+          if (!autoSubdistrict && addrList.length === 1) autoSubdistrict = addrList[0].s;
+          // If district provided, find matching entry
+          if (district) {
+            const match = addrList.find(a => a.d === district);
+            if (match) { province = match.p; if (!autoSubdistrict) autoSubdistrict = match.s; }
+          }
+        }
+
         parsed.push({
           receiver_phone: phone.startsWith("0") ? phone : "0" + phone,
           receiver_name: name,
           receiver_address: address,
-          receiver_subdistrict: subdistrict,
-          receiver_district: district,
+          receiver_subdistrict: autoSubdistrict,
+          receiver_district: autoDistrict,
+          receiver_province: province,
           receiver_postal: postal,
           cod_enabled: codAmount > 0,
           cod_amount: codAmount,
@@ -621,7 +640,7 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
           status: "draft",
           sender_name: shop?.name || "", sender_phone: shop?.phone || "", sender_address: shop?.address || "", sender_province: shop?.province || "",
           receiver_name: r.receiver_name, receiver_phone: r.receiver_phone, receiver_address: r.receiver_address,
-          receiver_subdistrict: r.receiver_subdistrict, receiver_district: r.receiver_district, receiver_postal: r.receiver_postal,
+          receiver_subdistrict: r.receiver_subdistrict, receiver_district: r.receiver_district, receiver_province: r.receiver_province || "", receiver_postal: r.receiver_postal,
           weight: 1, quantity: 1, item_desc: r.item_desc || "",
           cod_enabled: r.cod_enabled, cod_amount: r.cod_amount || 0,
           remark: r.remark || "",
