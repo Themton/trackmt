@@ -17,24 +17,15 @@ const FLASH_API_URL = "https://upabase-proxy.themtja.workers.dev/flash";
 
 // Flash Express API Helper
 const flashApi = {
-  generateNonce: () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let result = "";
-    for (let i = 0; i < 32; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
-    return result;
-  },
   async sign(params) {
     const sorted = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join("&");
-    const signStr = sorted + FLASH_API_KEY;
-    const enc = new TextEncoder();
-    const hash = await crypto.subtle.digest("SHA-256", enc.encode(signStr));
-    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sorted + FLASH_API_KEY));
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
   },
   async createOrder(parcel) {
-    const nonceStr = this.generateNonce();
     const params = {
       mchId: FLASH_MCH_ID,
-      nonceStr,
+      nonceStr: String(Date.now()),
       outTradeNo: parcel.parcel_no,
       expressCategory: parcel.cod_enabled ? 1 : 0,
       srcName: parcel.sender_name || "",
@@ -45,41 +36,33 @@ const flashApi = {
       dstName: parcel.receiver_name || "",
       dstPhone: parcel.receiver_phone || "",
       dstProvinceName: parcel.receiver_province || "",
-      dstDistrictName: parcel.receiver_district || "",
+      dstCityName: parcel.receiver_district || "",
+      dstDistrictName: parcel.receiver_subdistrict || "",
       dstDetailAddress: `${parcel.receiver_address || ""} ${parcel.receiver_subdistrict || ""} ${parcel.receiver_district || ""} ${parcel.receiver_province || ""}`.trim(),
       dstPostalCode: parcel.receiver_postal || "",
       articleCategory: 1,
       weight: Math.max(1, Math.round((parcel.weight || 1) * 1000)),
-      insured: parcel.cod_enabled ? 1 : 0,
     };
     if (parcel.cod_enabled && parcel.cod_amount > 0) {
       params.codEnabled = 1;
-      params.codAmount = String(Math.round(parcel.cod_amount * 100));
+      params.codAmount = Math.round(parcel.cod_amount * 100);
+      params.insured = 1;
     }
     Object.keys(params).forEach(k => { if (params[k] === "" || params[k] === undefined || params[k] === null) delete params[k]; });
-    const sign = await this.sign(params);
-    params.sign = sign;
+    params.sign = await this.sign(params);
 
     const body = new URLSearchParams(params).toString();
     const urls = [
-      `${FLASH_API_URL}/open/v3/orders`,
-      `https://open-api.flashexpress.com/open/v3/orders`,
+      `${FLASH_API_URL}/open/v1/orders`,
+      `https://open-api.flashexpress.com/open/v1/orders`,
     ];
-
     for (const url of urls) {
       try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body,
-        });
+        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
         return await res.json();
-      } catch (e) {
-        console.warn("Flash API failed:", url, e.message);
-        continue;
-      }
+      } catch (e) { console.warn("Flash:", url, e.message); continue; }
     }
-    throw new Error("ไม่สามารถเชื่อมต่อ Flash API ได้ — ตรวจสอบ Cloudflare Worker");
+    throw new Error("ไม่สามารถเชื่อมต่อ Flash API — ตรวจสอบ Cloudflare Worker");
   },
 };
 
