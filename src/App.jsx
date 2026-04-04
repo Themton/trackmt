@@ -23,6 +23,13 @@ const flashApi = {
     const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stringA + "&key=" + FLASH_API_KEY));
     return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
   },
+  async ping() {
+    const params = { mchId: FLASH_MCH_ID, nonceStr: String(Date.now()) };
+    params.sign = await this.sign(params);
+    const body = new URLSearchParams(params).toString();
+    const res = await fetch(`${FLASH_API_URL}/open/v1/ping`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+    return res.json();
+  },
   async createOrder(parcel) {
     // Validate required fields
     const missing = [];
@@ -1126,6 +1133,7 @@ export default function FlashBackend() {
                 <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="ค้นหา เลขพัสดุ, ชื่อ, เบอร์, Tracking..." style={{ width: "100%", padding: "9px 12px 9px 36px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
               </div>
               <button onClick={loadParcels} style={{ padding: "9px 14px", background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>🔄</button>
+              <button onClick={async () => { try { const r = await flashApi.ping(); alert("Flash API Ping:\n" + JSON.stringify(r, null, 2)); } catch(e) { alert("Ping failed: " + e.message); }}} style={{ padding: "9px 14px", background: "#fef3c7", border: "1.5px solid #fbbf24", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>⚡ Test</button>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               {perm.create && <button onClick={() => { setEditParcel(null); setShowForm(true); }} style={{ padding: "9px 18px", background: "#dc2626", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>＋ สร้างพัสดุ</button>}
