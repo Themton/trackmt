@@ -401,30 +401,30 @@ function PrintLabel({ parcel, onClose }) {
       <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 24, maxWidth: 480, width: "95%" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>ใบลาเบล</h3><button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>✕</button></div>
         <div ref={ref} style={{ border: "1px solid #ccc", borderRadius: 4 }}>
-          <div style={{ width: "100mm", height: "75mm", padding: "2.5mm", display: "flex", flexDirection: "column", fontFamily: "'Sarabun',sans-serif", border: "0.3mm solid #000" }}>
-            {/* Row 1: Logo + QR */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1mm" }}>
-              <div><div style={{ fontSize: "11pt", fontWeight: 900, color: "#e53e3e" }}>⚡ FLASH EXPRESS</div></div>
-              {pno && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${pno}&margin=1`} style={{ width: "14mm", height: "14mm" }} alt="QR" />}
+          <div style={{ width: "100mm", height: "75mm", padding: "2mm", display: "flex", flexDirection: "column", fontFamily: "'Sarabun',sans-serif", border: "0.3mm solid #000", overflow: "hidden" }}>
+            {/* Logo + Barcode + QR ในแถวเดียว */}
+            <div style={{ display: "flex", alignItems: "center", gap: "2mm", borderBottom: "0.4mm solid #000", paddingBottom: "1.5mm", marginBottom: "1mm" }}>
+              <div style={{ fontSize: "9pt", fontWeight: 900, color: "#e53e3e", whiteSpace: "nowrap" }}>⚡FLASH</div>
+              <div style={{ flex: 1, textAlign: "center" }}>
+                {pno && barcodeUrl && <img src={barcodeUrl} style={{ width: "45mm", height: "7mm" }} alt="" />}
+                <div style={{ fontSize: "9pt", fontWeight: 900, fontFamily: "monospace", letterSpacing: "1.5px" }}>{pno || "—"}</div>
+              </div>
+              {pno && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${pno}&margin=0`} style={{ width: "12mm", height: "12mm" }} alt="" />}
             </div>
-            {/* Row 2: Barcode ชัดๆ */}
-            {pno && <div style={{ textAlign: "center", margin: "0 0 0.5mm" }}>
-              {barcodeUrl ? <img src={barcodeUrl} style={{ width: "70mm", height: "10mm" }} alt="barcode" /> : <img src={`https://barcodeapi.org/api/128/${pno}?height=80`} style={{ width: "70mm", height: "10mm" }} alt="barcode" />}
-            </div>}
-            {/* Row 3: เลขพัสดุ ตัวใหญ่ ชัด */}
-            <div style={{ textAlign: "center", fontSize: "13pt", fontWeight: 900, fontFamily: "monospace", letterSpacing: "2px", margin: "0 0 1mm", borderBottom: "0.5mm solid #000", paddingBottom: "1mm" }}>{pno || "—"}</div>
             {/* Sort Code */}
-            {parcel.flash_sort_code && <div style={{ fontSize: "14pt", fontWeight: 900, textAlign: "center", background: "#000", color: "#fff", padding: "1mm 3mm", margin: "0 0 1mm", letterSpacing: "2px" }}>{parcel.flash_sort_code}</div>}
+            {parcel.flash_sort_code && <div style={{ fontSize: "13pt", fontWeight: 900, textAlign: "center", background: "#000", color: "#fff", padding: "0.5mm 2mm", marginBottom: "1mm", letterSpacing: "2px" }}>{parcel.flash_sort_code}</div>}
             {/* Sender + Receiver */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1mm" }}>
-              <div style={{ border: "0.3mm solid #ccc", padding: "1mm 2mm", borderRadius: "0.5mm" }}><div style={{ fontSize: "5pt", color: "#888" }}>ผู้ส่ง</div><div style={{ fontSize: "7pt", fontWeight: 600 }}>{parcel.sender_name}</div><div style={{ fontSize: "6pt", color: "#555" }}>{parcel.sender_phone}</div></div>
-              <div style={{ border: "0.3mm solid #ccc", padding: "1mm 2mm", borderRadius: "0.5mm" }}><div style={{ fontSize: "5pt", color: "#888" }}>ผู้รับ</div><div style={{ fontSize: "8pt", fontWeight: 800 }}>{parcel.receiver_name}</div><div style={{ fontSize: "6.5pt", fontWeight: 600 }}>{parcel.receiver_phone}</div></div>
-              <div style={{ border: "0.3mm solid #ccc", padding: "1mm 2mm", borderRadius: "0.5mm", gridColumn: "1/3" }}><div style={{ fontSize: "5pt", color: "#888" }}>ที่อยู่ผู้รับ</div><div style={{ fontSize: "6.5pt", fontWeight: 600, lineHeight: 1.3 }}>{parcel.receiver_address} {parcel.receiver_subdistrict} {parcel.receiver_district} {parcel.receiver_province} {parcel.receiver_postal}</div></div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1mm", marginBottom: "1mm" }}>
+              <div style={{ border: "0.2mm solid #bbb", padding: "0.8mm 1.5mm" }}><div style={{ fontSize: "4.5pt", color: "#888" }}>ผู้ส่ง</div><div style={{ fontSize: "6.5pt", fontWeight: 600 }}>{parcel.sender_name}</div><div style={{ fontSize: "5.5pt", color: "#555" }}>{parcel.sender_phone}</div></div>
+              <div style={{ border: "0.2mm solid #bbb", padding: "0.8mm 1.5mm" }}><div style={{ fontSize: "4.5pt", color: "#888" }}>ผู้รับ</div><div style={{ fontSize: "7.5pt", fontWeight: 800 }}>{parcel.receiver_name}</div><div style={{ fontSize: "6pt", fontWeight: 600 }}>{parcel.receiver_phone}</div></div>
             </div>
-            {/* COD ตัวใหญ่ */}
-            {parcel.cod_enabled && <div style={{ background: "#000", textAlign: "center", padding: "1.5mm", marginTop: "1mm", borderRadius: "1mm" }}><span style={{ fontSize: "8pt", color: "#fff", fontWeight: 600 }}>เก็บเงินปลายทาง </span><span style={{ fontSize: "16pt", fontWeight: 900, color: "#fbbf24" }}>฿{Number(parcel.cod_amount || 0).toLocaleString()}</span></div>}
-            {/* Note ตัวใหญ่ */}
-            {parcel.remark && <div style={{ background: "#f0f0f0", padding: "1mm 2mm", marginTop: "1mm", borderRadius: "0.5mm", border: "0.3mm solid #999" }}><div style={{ fontSize: "10pt", fontWeight: 700, color: "#000", lineHeight: 1.2 }}>{parcel.remark}</div></div>}
+            {/* ที่อยู่ผู้รับ */}
+            <div style={{ border: "0.2mm solid #bbb", padding: "0.8mm 1.5mm", marginBottom: "1mm" }}><div style={{ fontSize: "4.5pt", color: "#888" }}>ที่อยู่ผู้รับ</div><div style={{ fontSize: "6pt", fontWeight: 600, lineHeight: 1.2 }}>{parcel.receiver_address} {parcel.receiver_subdistrict} {parcel.receiver_district} {parcel.receiver_province} {parcel.receiver_postal}</div></div>
+            {/* COD + Note */}
+            <div style={{ marginTop: "auto" }}>
+              {parcel.cod_enabled && <div style={{ background: "#000", textAlign: "center", padding: "1mm", marginBottom: "0.5mm" }}><span style={{ fontSize: "7pt", color: "#fff" }}>เก็บเงินปลายทาง </span><span style={{ fontSize: "14pt", fontWeight: 900, color: "#fbbf24" }}>฿{Number(parcel.cod_amount || 0).toLocaleString()}</span></div>}
+              {parcel.remark && <div style={{ background: "#eee", padding: "0.8mm 1.5mm", border: "0.2mm solid #999" }}><div style={{ fontSize: "8pt", fontWeight: 700, lineHeight: 1.2 }}>{parcel.remark}</div></div>}
+            </div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
