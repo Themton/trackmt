@@ -1160,6 +1160,8 @@ export default function FlashBackend() {
       {printParcel && <PrintLabel parcel={printParcel} onClose={() => setPrintParcel(null)} />}
       {showUsers && <UserManagement onClose={() => { setShowUsers(false); setActivePage("parcels"); }} isDemo={isDemo} />}
       {showShops && <ShopManagement onClose={() => { setShowShops(false); setActivePage("parcels"); }} onUpdate={loadShops} isDemo={isDemo} />}
+      {showUsers && <UserManagement onClose={() => { setShowUsers(false); setActivePage("parcels"); }} isDemo={isDemo} />}
+      {showShops && <ShopManagement onClose={() => { setShowShops(false); setActivePage("parcels"); }} onUpdate={loadShops} isDemo={isDemo} />}
     </div>
   );
 }
