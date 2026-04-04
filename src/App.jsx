@@ -27,7 +27,7 @@ const flashApi = {
     const sorted = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join("&");
     const enc = new TextEncoder();
     const key = await crypto.subtle.importKey("raw", enc.encode(FLASH_API_KEY), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-    const sig = await crypto.subtle.sign("HMAC", enc.encode(sorted), key);
+    const sig = await crypto.subtle.sign("HMAC", key, enc.encode(sorted));
     return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
   },
   async createOrder(parcel) {
