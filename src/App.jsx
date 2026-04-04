@@ -382,17 +382,19 @@ function PrintLabel({ parcel, onClose }) {
           <div style={{ width: "100mm", height: "75mm", padding: "3mm", display: "flex", flexDirection: "column", fontFamily: "'Sarabun',sans-serif", border: "0.3mm solid #000" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "0.5mm solid #000", paddingBottom: "2mm", marginBottom: "2mm" }}>
               <div><div style={{ fontSize: "14pt", fontWeight: 900, color: "#e53e3e" }}>⚡ FLASH</div><div style={{ fontSize: "6pt", color: "#666" }}>EXPRESS</div></div>
-              <div style={{ textAlign: "right" }}><div style={{ fontSize: "6pt", color: "#888" }}>เลขพัสดุ</div><div style={{ fontSize: "8pt", fontWeight: 700, fontFamily: "monospace" }}>{parcel.parcel_no}</div></div>
+              <div style={{ textAlign: "center", flex: 1 }}><div style={{ fontSize: "11pt", fontWeight: 700, fontFamily: "monospace", letterSpacing: "1.5px" }}>{parcel.flash_pno || "—"}</div></div>
             </div>
-            <div style={{ textAlign: "center", margin: "1.5mm 0" }}><div style={{ fontSize: "11pt", fontWeight: 700, fontFamily: "monospace", letterSpacing: "1.5px" }}>{parcel.flash_pno || "TH-XXXX-XXXX"}</div></div>
-            {parcel.flash_sort_code && <div style={{ fontSize: "18pt", fontWeight: 900, textAlign: "center", background: "#000", color: "#fff", padding: "1.5mm 3mm", margin: "1.5mm 0", letterSpacing: "2px" }}>{parcel.flash_sort_code}</div>}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5mm", flex: 1 }}>
+            {parcel.flash_sort_code && <div style={{ fontSize: "18pt", fontWeight: 900, textAlign: "center", background: "#000", color: "#fff", padding: "1.5mm 3mm", margin: "0 0 1.5mm", letterSpacing: "2px" }}>{parcel.flash_sort_code}</div>}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5mm" }}>
               <div style={{ border: "0.3mm solid #ccc", padding: "1.5mm 2mm", borderRadius: "1mm" }}><div style={{ fontSize: "5.5pt", color: "#888" }}>ผู้ส่ง</div><div style={{ fontSize: "7.5pt", fontWeight: 600 }}>{parcel.sender_name}</div><div style={{ fontSize: "6.5pt", color: "#555" }}>{parcel.sender_phone}</div></div>
               <div style={{ border: "0.3mm solid #ccc", padding: "1.5mm 2mm", borderRadius: "1mm" }}><div style={{ fontSize: "5.5pt", color: "#888" }}>ผู้รับ</div><div style={{ fontSize: "8.5pt", fontWeight: 700 }}>{parcel.receiver_name}</div><div style={{ fontSize: "7pt", fontWeight: 600 }}>{parcel.receiver_phone}</div></div>
               <div style={{ border: "0.3mm solid #ccc", padding: "1.5mm 2mm", borderRadius: "1mm", gridColumn: "1/3" }}><div style={{ fontSize: "5.5pt", color: "#888" }}>ที่อยู่ผู้รับ</div><div style={{ fontSize: "7pt", fontWeight: 600, lineHeight: 1.4 }}>{parcel.receiver_address} {parcel.receiver_subdistrict} {parcel.receiver_district} {parcel.receiver_province} {parcel.receiver_postal}</div></div>
             </div>
-            {parcel.cod_enabled && <div style={{ background: "#fff3cd", border: "0.5mm solid #f59e0b", textAlign: "center", padding: "1mm", marginTop: "1.5mm", borderRadius: "1mm" }}><span style={{ fontSize: "7pt" }}>COD </span><span style={{ fontSize: "12pt", fontWeight: 900, color: "#d97706" }}>฿{Number(parcel.cod_amount || 0).toLocaleString()}</span></div>}
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "5.5pt", color: "#999", marginTop: "auto", paddingTop: "1mm", borderTop: "0.3mm dashed #ddd" }}><span>{parcel.parcel_no}</span><span>{parcel.weight || 1} kg</span><span>{new Date(parcel.created_at || Date.now()).toLocaleDateString("th-TH")}</span></div>
+            {/* COD ตัวใหญ่ */}
+            {parcel.cod_enabled && <div style={{ background: "#000", textAlign: "center", padding: "2mm", marginTop: "1.5mm", borderRadius: "1mm" }}><span style={{ fontSize: "9pt", color: "#fff", fontWeight: 600 }}>เก็บเงินปลายทาง </span><span style={{ fontSize: "18pt", fontWeight: 900, color: "#fbbf24" }}>฿{Number(parcel.cod_amount || 0).toLocaleString()}</span></div>}
+            {/* Note ตัวใหญ่ */}
+            {parcel.remark && <div style={{ background: "#f0f0f0", padding: "1.5mm 2mm", marginTop: "1.5mm", borderRadius: "1mm", border: "0.3mm solid #ccc" }}><div style={{ fontSize: "12pt", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.3 }}>{parcel.remark}</div></div>}
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "5.5pt", color: "#999", marginTop: "auto", paddingTop: "1mm", borderTop: "0.3mm dashed #ddd" }}><span>{parcel.flash_pno || ""}</span><span>{parcel.weight || 1} kg</span><span>{new Date(parcel.created_at || Date.now()).toLocaleDateString("th-TH")}</span></div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
@@ -921,7 +923,7 @@ function StatusModal({ parcel, onSave, onClose }) {
     <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 480, width: "95%" }}>
         <h3 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 800 }}>🔄 อัพเดตสถานะ</h3>
-        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>{parcel.parcel_no} — {parcel.receiver_name}</div>
+        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>{parcel.receiver_name} — {parcel.receiver_phone}</div>
         <div style={{ marginBottom: 16, padding: 14, background: "#fef2f2", borderRadius: 12 }}>
           <label style={{ fontSize: 12, fontWeight: 600, color: "#dc2626", display: "block", marginBottom: 6 }}>⚡ Tracking</label>
           <input value={flashPno} onChange={e => setFlashPno(e.target.value)} placeholder="TH..." style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #fca5a5", borderRadius: 8, fontSize: 14, fontFamily: "monospace", outline: "none", marginBottom: 8 }} />
@@ -1003,15 +1005,15 @@ export default function FlashBackend() {
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const stats = useMemo(() => ({ total: parcels.length, draft: parcels.filter(p => p.status === "draft").length, inTransit: parcels.filter(p => ["in_transit", "out_for_delivery", "picked_up", "waiting_pickup"].includes(p.status)).length, delivered: parcels.filter(p => p.status === "delivered").length, problems: parcels.filter(p => ["returned", "failed", "cancelled"].includes(p.status)).length, codTotal: parcels.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [parcels]);
 
-  const handleDelete = async (p) => { if (!confirm(`ลบ ${p.parcel_no}?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); loadParcels(); } catch (e) { alert(e.message); } };
+  const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); loadParcels(); } catch (e) { alert(e.message); } };
   const markPrinted = async (p) => { if (isDemo) { setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: true } : x)); return; } try { await sb.update("fx_parcels", p.id, { label_printed: true, label_printed_at: new Date().toISOString() }); loadParcels(); } catch {} };
 
   // สร้างเลข Tracking Flash Express
   const [flashLoading, setFlashLoading] = useState(null);
   const createFlashOrder = async (p) => {
     if (p.flash_pno) { alert("พัสดุนี้มีเลข Tracking แล้ว: " + p.flash_pno); return; }
-    if (!p.receiver_name || !p.receiver_phone) { alert(`❌ ${p.parcel_no}\nกรุณากรอกชื่อและเบอร์ผู้รับก่อน`); return; }
-    if (!p.receiver_province && !p.receiver_postal) { alert(`❌ ${p.parcel_no}\nกรุณากรอกจังหวัดหรือรหัสไปรษณีย์ผู้รับ\n\nกด ✏️ แก้ไข → กรอกที่อยู่ให้ครบ`); return; }
+    if (!p.receiver_name || !p.receiver_phone) { alert(`❌ ${p.receiver_name}\nกรุณากรอกชื่อและเบอร์ผู้รับก่อน`); return; }
+    if (!p.receiver_province && !p.receiver_postal) { alert(`❌ ${p.receiver_name}\nกรุณากรอกจังหวัดหรือรหัสไปรษณีย์ผู้รับ\n\nกด ✏️ แก้ไข → กรอกที่อยู่ให้ครบ`); return; }
     if (!confirm(`สร้างเลข Tracking Flash Express\nให้พัสดุ ${p.parcel_no}?\n\nผู้รับ: ${p.receiver_name}\nเบอร์: ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "—"}\nอำเภอ: ${p.receiver_district || "—"}`)) return;
     setFlashLoading(p.id);
     try {
@@ -1068,7 +1070,7 @@ export default function FlashBackend() {
   const batchDelete = async () => {
     const targets = parcels.filter(p => selectedIds.has(p.id));
     if (!targets.length) return;
-    if (!confirm(`ลบ ${targets.length} รายการ?\n\n${targets.map(p => p.parcel_no + " — " + p.receiver_name).join("\n")}`)) return;
+    if (!confirm(`ลบ ${targets.length} รายการ?\n\n${targets.map(p => p.receiver_name + " " + p.receiver_phone).join("\n")}`)) return;
     let success = 0;
     for (const p of targets) {
       try { if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); } else { await sb.delete("fx_parcels", p.id); } success++; } catch {}
@@ -1230,7 +1232,7 @@ export default function FlashBackend() {
       {/* DETAIL MODAL */}
       {viewParcel && <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setViewParcel(null)}><div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 520, width: "95%", maxHeight: "85vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>📦 รายละเอียด</h3><button onClick={() => setViewParcel(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>✕</button></div>
-        {[["เลขพัสดุ", viewParcel.parcel_no], ["Tracking", viewParcel.flash_pno || "—"], ["Sort Code", viewParcel.flash_sort_code || "—"], ["สถานะ", `${getStatus(viewParcel.status).icon} ${getStatus(viewParcel.status).label}`], ["── ผู้ส่ง ──", ""], ["ชื่อ", viewParcel.sender_name], ["เบอร์", viewParcel.sender_phone], ["── ผู้รับ ──", ""], ["ชื่อ", viewParcel.receiver_name], ["เบอร์", viewParcel.receiver_phone], ["ที่อยู่", `${viewParcel.receiver_address || ""} ${viewParcel.receiver_subdistrict || ""} ${viewParcel.receiver_district || ""} ${viewParcel.receiver_province || ""} ${viewParcel.receiver_postal || ""}`], ["── พัสดุ ──", ""], ["น้ำหนัก", `${viewParcel.weight || 1} kg`], ["สินค้า", viewParcel.item_desc || "—"], ...(perm.viewCOD ? [["COD", viewParcel.cod_enabled ? `฿${Number(viewParcel.cod_amount || 0).toLocaleString()}` : "ไม่มี"]] : []), ["ผู้สร้าง", viewParcel.created_by_name || "—"], ["สร้างเมื่อ", new Date(viewParcel.created_at).toLocaleString("th-TH")]].map(([l, v], i) => v === "" ? <div key={i} style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", padding: "10px 0 4px", borderBottom: "1px solid #f1f5f9" }}>{l}</div> : <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #f8fafc" }}><span style={{ fontSize: 13, color: "#64748b" }}>{l}</span><span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", textAlign: "right", maxWidth: "60%", wordBreak: "break-word" }}>{v}</span></div>)}
+        {[["Tracking", viewParcel.flash_pno || "—"], ["Sort Code", viewParcel.flash_sort_code || "—"], ["สถานะ", `${getStatus(viewParcel.status).icon} ${getStatus(viewParcel.status).label}`], ["── ผู้ส่ง ──", ""], ["ชื่อ", viewParcel.sender_name], ["เบอร์", viewParcel.sender_phone], ["── ผู้รับ ──", ""], ["ชื่อ", viewParcel.receiver_name], ["เบอร์", viewParcel.receiver_phone], ["ที่อยู่", `${viewParcel.receiver_address || ""} ${viewParcel.receiver_subdistrict || ""} ${viewParcel.receiver_district || ""} ${viewParcel.receiver_province || ""} ${viewParcel.receiver_postal || ""}`], ["── พัสดุ ──", ""], ["น้ำหนัก", `${viewParcel.weight || 1} kg`], ["สินค้า", viewParcel.item_desc || "—"], ...(perm.viewCOD ? [["COD", viewParcel.cod_enabled ? `฿${Number(viewParcel.cod_amount || 0).toLocaleString()}` : "ไม่มี"]] : []), ["ผู้สร้าง", viewParcel.created_by_name || "—"], ["สร้างเมื่อ", new Date(viewParcel.created_at).toLocaleString("th-TH")]].map(([l, v], i) => v === "" ? <div key={i} style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", padding: "10px 0 4px", borderBottom: "1px solid #f1f5f9" }}>{l}</div> : <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #f8fafc" }}><span style={{ fontSize: 13, color: "#64748b" }}>{l}</span><span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", textAlign: "right", maxWidth: "60%", wordBreak: "break-word" }}>{v}</span></div>)}
         <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
           {perm.edit && <button onClick={() => { setEditParcel(viewParcel); setShowForm(true); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#e53e3e", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>✏️ แก้ไข</button>}
           {perm.status && <button onClick={() => { setStatusParcel(viewParcel); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#1e293b", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>🔄 สถานะ</button>}
