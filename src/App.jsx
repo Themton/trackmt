@@ -1141,6 +1141,7 @@ export default function FlashBackend() {
   const MENU = [
     { key: "parcels", label: "การจัดส่ง", icon: "📦" },
     { key: "import", label: "Import ไฟล์", icon: "📥" },
+    { key: "export", label: "Export ข้อมูล", icon: "📤" },
     { key: "shops", label: "ร้านค้า", icon: "🏪" },
     ...(perm.users ? [{ key: "users", label: "จัดการผู้ใช้", icon: "👥" }] : []),
   ];
@@ -1160,6 +1161,139 @@ export default function FlashBackend() {
 
   // ═══ SHOPS PAGE — inline ═══
   const ShopsPage = () => <div style={{ padding: 24 }}><ShopManagement onClose={() => {}} onUpdate={loadShops} isDemo={isDemo} inline /></div>;
+
+  // ═══ EXPORT PAGE ═══
+  const ExportPage = () => {
+    const [exportShop, setExportShop] = useState("");
+    const [exportStatus, setExportStatus] = useState("ALL");
+    const [exportFrom, setExportFrom] = useState("");
+    const [exportTo, setExportTo] = useState("");
+    const [exporting, setExporting] = useState(false);
+
+    const getExportData = () => {
+      let list = parcels;
+      if (exportShop) list = list.filter(p => p.shop_id === exportShop);
+      if (exportStatus !== "ALL") list = list.filter(p => p.status === exportStatus);
+      if (exportFrom) list = list.filter(p => new Date(p.created_at) >= new Date(exportFrom));
+      if (exportTo) list = list.filter(p => new Date(p.created_at) <= new Date(exportTo + "T23:59:59"));
+      return list;
+    };
+
+    const doExport = async (format) => {
+      const data = getExportData();
+      if (!data.length) { alert("ไม่มีข้อมูลที่จะ Export"); return; }
+      setExporting(true);
+
+      const headers = ["ชื่อผู้รับ","เบอร์ผู้รับ","ที่อยู่","ตำบล","อำเภอ","จังหวัด","รหัสไปรษณีย์","Tracking","Sort Code","สถานะ","COD","ยอด COD","หมายเหตุ","ชื่อผู้ส่ง","เบอร์ผู้ส่ง","วันที่สร้าง"];
+      const rows = data.map(p => [
+        p.receiver_name, p.receiver_phone, p.receiver_address,
+        p.receiver_subdistrict, p.receiver_district, p.receiver_province, p.receiver_postal,
+        p.flash_pno || "", p.flash_sort_code || "",
+        getStatus(p.status).label,
+        p.cod_enabled ? "ใช่" : "ไม่", p.cod_amount || 0,
+        p.remark || "",
+        p.sender_name, p.sender_phone,
+        new Date(p.created_at).toLocaleString("th-TH"),
+      ]);
+
+      if (format === "csv") {
+        const bom = "\uFEFF";
+        const csv = bom + [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = `flash-export-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        ws["!cols"] = headers.map((_, i) => ({ wch: i < 2 ? 20 : i === 2 ? 30 : i === 7 ? 18 : 14 }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Export");
+        XLSX.writeFile(wb, `flash-export-${new Date().toISOString().slice(0,10)}.xlsx`);
+      }
+      setExporting(false);
+      showToast(`Export สำเร็จ ${data.length} รายการ`);
+    };
+
+    const previewData = getExportData();
+    const I = { padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontFamily: "inherit" };
+
+    return (
+      <div style={{ padding: 24 }}>
+        <div style={{ marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>📤 Export ข้อมูล</h2>
+          <p style={{ margin: "6px 0 0", fontSize: 14, color: "#64748b" }}>ดาวน์โหลดข้อมูลพัสดุเป็น Excel หรือ CSV</p>
+        </div>
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", overflow: "hidden" }}>
+          {/* Filters */}
+          <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9" }}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>ร้านค้า</label>
+                <select value={exportShop} onChange={e => setExportShop(e.target.value)} style={{ ...I, minWidth: 150 }}>
+                  <option value="">ทุกร้าน</option>
+                  {shops?.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>สถานะ</label>
+                <select value={exportStatus} onChange={e => setExportStatus(e.target.value)} style={{ ...I, minWidth: 120 }}>
+                  <option value="ALL">ทั้งหมด</option>
+                  {STATUSES.map(s => <option key={s.key} value={s.key}>{s.icon} {s.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>ตั้งแต่วันที่</label>
+                <input type="date" value={exportFrom} onChange={e => setExportFrom(e.target.value)} style={I} />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>ถึงวันที่</label>
+                <input type="date" value={exportTo} onChange={e => setExportTo(e.target.value)} style={I} />
+              </div>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>พบ {previewData.length} รายการ</div>
+            {previewData.length > 0 && (
+              <div style={{ overflowX: "auto", maxHeight: 300 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                  <thead><tr style={{ background: "#f8fafc" }}>
+                    {["ชื่อ","เบอร์","อำเภอ","จังหวัด","Tracking","สถานะ","COD","หมายเหตุ"].map((h,i) => <th key={i} style={{ padding: "6px 8px", textAlign: "left", fontWeight: 700, color: "#64748b", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>{previewData.slice(0, 20).map((p, i) => {
+                    const st = getStatus(p.status);
+                    return <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                      <td style={{ padding: "5px 8px", fontWeight: 600 }}>{p.receiver_name}</td>
+                      <td style={{ padding: "5px 8px", fontFamily: "monospace" }}>{p.receiver_phone}</td>
+                      <td style={{ padding: "5px 8px" }}>{p.receiver_district}</td>
+                      <td style={{ padding: "5px 8px" }}>{p.receiver_province}</td>
+                      <td style={{ padding: "5px 8px", fontFamily: "monospace", fontSize: 10 }}>{p.flash_pno || "—"}</td>
+                      <td style={{ padding: "5px 8px" }}><span style={{ fontSize: 10, color: st.color }}>{st.icon} {st.label}</span></td>
+                      <td style={{ padding: "5px 8px", fontWeight: 600, color: "#d97706" }}>{p.cod_enabled ? `฿${p.cod_amount}` : "—"}</td>
+                      <td style={{ padding: "5px 8px", fontSize: 10, color: "#64748b", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.remark || "—"}</td>
+                    </tr>;
+                  })}</tbody>
+                </table>
+                {previewData.length > 20 && <div style={{ padding: 8, textAlign: "center", fontSize: 12, color: "#94a3b8" }}>... แสดง 20/{previewData.length} รายการ</div>}
+              </div>
+            )}
+          </div>
+
+          {/* Export Buttons */}
+          <div style={{ padding: "16px 24px", display: "flex", gap: 12 }}>
+            <button onClick={() => doExport("xlsx")} disabled={exporting || !previewData.length} style={{ flex: 1, padding: 14, background: previewData.length ? "#059669" : "#94a3b8", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: previewData.length ? "pointer" : "not-allowed" }}>
+              📊 Export Excel (.xlsx)
+            </button>
+            <button onClick={() => doExport("csv")} disabled={exporting || !previewData.length} style={{ flex: 1, padding: 14, background: previewData.length ? "#4f46e5" : "#94a3b8", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: previewData.length ? "pointer" : "not-allowed" }}>
+              📄 Export CSV
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // ═══ USERS PAGE — inline ═══
   const UsersPage = () => <div style={{ padding: 24 }}><UserManagement onClose={() => {}} isDemo={isDemo} inline /></div>;
@@ -1290,6 +1424,7 @@ export default function FlashBackend() {
           </>)}
 
           {activePage === "import" && <ImportPage />}
+          {activePage === "export" && <ExportPage />}
           {activePage === "shops" && <ShopsPage />}
           {activePage === "users" && <UsersPage />}
         </div>
