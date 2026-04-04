@@ -1023,10 +1023,9 @@ export default function FlashBackend() {
   ], []);
 
   const loadParcels = useCallback(async () => {
-    setGlobalLoading({ msg: "กำลังโหลดข้อมูล..." });
-    if (isDemo) { setParcels(demoData); setLoading(false); setGlobalLoading(null); return; }
+    if (isDemo) { setParcels(demoData); setLoading(false); return; }
     setLoading(true);
-    try { const d = await sb.select("fx_parcels", { order: "created_at.desc" }); setParcels(d || []); } catch {} setLoading(false); setGlobalLoading(null);
+    try { const d = await sb.select("fx_parcels", { order: "created_at.desc" }); setParcels(d || []); } catch {} setLoading(false);
   }, [isDemo, demoData]);
 
   useEffect(() => { if (user) loadParcels(); }, [user, loadParcels]);
@@ -1066,7 +1065,6 @@ export default function FlashBackend() {
     if (!p.receiver_province && !p.receiver_postal) { alert(`❌ ${p.receiver_name}\nกรุณากรอกจังหวัดหรือรหัสไปรษณีย์ผู้รับ\n\nกด ✏️ แก้ไข → กรอกที่อยู่ให้ครบ`); return; }
     if (!confirm(`สร้างเลข Tracking Flash Express\nให้พัสดุ ${p.parcel_no}?\n\nผู้รับ: ${p.receiver_name}\nเบอร์: ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "—"}\nอำเภอ: ${p.receiver_district || "—"}`)) return;
     setFlashLoading(p.id);
-    setGlobalLoading({ msg: "กำลังสร้างเลข Tracking..." });
     try {
       const result = await flashApi.createOrder(p);
       console.log("Flash API response:", JSON.stringify(result));
@@ -1085,7 +1083,7 @@ export default function FlashBackend() {
         alert(`❌ Flash API Error (code: ${result.code}):\n${result.message || ""}\n${result.data ? "\nรายละเอียด: " + JSON.stringify(result.data) : ""}\n\n📤 ผู้ส่ง: ${p.sender_name || "❌"} | ${p.sender_phone || "❌"}\nที่อยู่ส่ง: ${p.sender_address || "❌"} | ${p.sender_province || "❌"} | ปณ.${p.sender_postal || "❌"}\n\n📥 ผู้รับ: ${p.receiver_name} | ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "❌"} | อำเภอ: ${p.receiver_district || "❌"}\nตำบล: ${p.receiver_subdistrict || "❌"} | ปณ.${p.receiver_postal || "❌"}\nที่อยู่: ${p.receiver_address || "❌"}`);
       }
     } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้:\n" + e.message); }
-    setFlashLoading(null); setGlobalLoading(null);
+    setFlashLoading(null);
   };
 
   // Batch สร้างเลข Tracking
@@ -1212,7 +1210,6 @@ export default function FlashBackend() {
                 <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="ค้นหา เลขพัสดุ, ชื่อ, เบอร์, Tracking..." style={{ width: "100%", padding: "9px 12px 9px 36px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
               </div>
               <button onClick={loadParcels} style={{ padding: "9px 14px", background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>🔄</button>
-              <button onClick={async () => { try { const r = await flashApi.ping(); alert("Flash API Ping:\n" + JSON.stringify(r, null, 2)); } catch(e) { alert("Ping failed: " + e.message); }}} style={{ padding: "9px 14px", background: "#fef3c7", border: "1.5px solid #fbbf24", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>⚡ Test</button>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               {shops?.length > 0 && <select value={selectedShopFilter} onChange={e => { setSelectedShopFilter(e.target.value); setPage(0); }} style={{ padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontFamily: "inherit", fontWeight: 600, color: selectedShopFilter ? "#dc2626" : "#64748b", minWidth: 120 }}>
@@ -1301,26 +1298,18 @@ export default function FlashBackend() {
       )}
       <style>{`@keyframes slideDown { from{opacity:0;transform:translateX(-50%) translateY(-20px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }`}</style>
 
-      {/* GLOBAL LOADING OVERLAY */}
-      {globalLoading && (
-        <div style={{ position: "fixed", top: 0, left: 200, right: 0, zIndex: 9000, pointerEvents: globalLoading.progress ? "all" : "none" }}>
-          <div style={{ height: 3, background: "#e2e8f0" }}>
-            <div style={{ height: "100%", background: "linear-gradient(90deg,#dc2626,#f59e0b)", width: globalLoading.progress ? `${globalLoading.progress}%` : "100%", transition: "width .3s", animation: globalLoading.progress ? "none" : "loading 1.5s infinite" }} />
-          </div>
-          {globalLoading.progress && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9001 }}>
-              <div style={{ background: "#fff", borderRadius: 16, padding: "24px 40px", textAlign: "center", boxShadow: "0 10px 40px rgba(0,0,0,.2)" }}>
-                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>{globalLoading.msg}</div>
-                <div style={{ width: 200, height: 8, background: "#e2e8f0", borderRadius: 4 }}>
-                  <div style={{ width: `${globalLoading.progress}%`, height: "100%", background: "linear-gradient(90deg,#dc2626,#f59e0b)", borderRadius: 4, transition: ".3s" }} />
-                </div>
-                <div style={{ fontSize: 24, fontWeight: 900, color: "#dc2626", marginTop: 8 }}>{globalLoading.progress}%</div>
-              </div>
+      {/* LOADING OVERLAY — เฉพาะ batch operations */}
+      {globalLoading?.progress && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9001 }}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: "24px 40px", textAlign: "center", boxShadow: "0 10px 40px rgba(0,0,0,.2)" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>{globalLoading.msg}</div>
+            <div style={{ width: 200, height: 8, background: "#e2e8f0", borderRadius: 4 }}>
+              <div style={{ width: `${globalLoading.progress}%`, height: "100%", background: "linear-gradient(90deg,#dc2626,#f59e0b)", borderRadius: 4, transition: ".3s" }} />
             </div>
-          )}
+            <div style={{ fontSize: 24, fontWeight: 900, color: "#dc2626", marginTop: 8 }}>{globalLoading.progress}%</div>
+          </div>
         </div>
       )}
-      <style>{`@keyframes loading { 0%{width:0%} 50%{width:70%} 100%{width:100%} }`}</style>
 
       {/* DETAIL MODAL */}
       {viewParcel && <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setViewParcel(null)}><div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 520, width: "95%", maxHeight: "85vh", overflowY: "auto" }}>
