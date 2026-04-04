@@ -367,11 +367,81 @@ function PrintLabel({ parcel, onClose }) {
 // ═══════════════════════════════════════════════════════════════
 // PARCEL FORM
 // ═══════════════════════════════════════════════════════════════
-function ParcelForm({ parcel, user, onSave, onClose }) {
+// ═══════════════════════════════════════════════════════════════
+// ADDRESS PARSER — วางที่อยู่แล้วจับอัตโนมัติ
+// ═══════════════════════════════════════════════════════════════
+function parseThaiAddress(raw) {
+  const r = { name: "", phone: "", address: "", subdistrict: "", district: "", province: "", postal: "" };
+  if (!raw) return r;
+  const lines = raw.replace(/\r/g, "").split("\n").map(s => s.trim()).filter(Boolean);
+  const full = lines.join(" ");
+  // Phone
+  const phoneMatch = full.match(/(\d[\d-]{8,})/);
+  if (phoneMatch) r.phone = phoneMatch[1].replace(/-/g, "");
+  // Postal
+  const postalMatch = full.match(/\b(\d{5})\b/);
+  if (postalMatch) r.postal = postalMatch[1];
+  // Province
+  const provMatch = full.match(/(จ\.|จังหวัด)\s*([ก-๙]+)/);
+  if (provMatch) r.province = provMatch[2];
+  else { for (const p of PROVINCES) { if (full.includes(p)) { r.province = p; break; } } }
+  // District
+  const distMatch = full.match(/(อ\.|อำเภอ|เขต)\s*([ก-๙]+)/);
+  if (distMatch) r.district = distMatch[2];
+  // Subdistrict
+  const subMatch = full.match(/(ต\.|ตำบล|แขวง)\s*([ก-๙]+)/);
+  if (subMatch) r.subdistrict = subMatch[2];
+  // Name — first line or text before phone/address
+  if (lines.length >= 2) r.name = lines[0].replace(/(\d[\d-]{8,})/, "").trim();
+  else r.name = full.split(/\d{3}/)[0]?.trim() || "";
+  // Remove phone from name
+  if (r.phone && r.name.includes(r.phone)) r.name = r.name.replace(r.phone, "").trim();
+  // Address — everything else
+  let addr = full;
+  [r.name, r.phone, `จ.${r.province}`, `จังหวัด${r.province}`, r.province, `อ.${r.district}`, `อำเภอ${r.district}`, `เขต${r.district}`, `ต.${r.subdistrict}`, `ตำบล${r.subdistrict}`, `แขวง${r.subdistrict}`, r.postal].forEach(v => { if (v) addr = addr.replace(v, ""); });
+  r.address = addr.replace(/\s+/g, " ").replace(/^[\s,]+|[\s,]+$/g, "").trim();
+  return r;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PARCEL FORM — with Shop selector + Address parser
+// ═══════════════════════════════════════════════════════════════
+function ParcelForm({ parcel, user, shops, onSave, onClose }) {
   const isEdit = !!parcel?.id;
   const [form, setForm] = useState(parcel || { sender_name: "", sender_phone: "", sender_address: "", sender_province: "", receiver_name: "", receiver_phone: "", receiver_address: "", receiver_province: "", receiver_district: "", receiver_subdistrict: "", receiver_postal: "", weight: 1, item_desc: "", quantity: 1, cod_enabled: false, cod_amount: 0, remark: "" });
   const [saving, setSaving] = useState(false);
-  useEffect(() => { if (!isEdit) sb.select("fx_settings", { filters: "key=eq.default_sender" }).then(d => { if (d?.[0]?.value) { const s = d[0].value; setForm(f => ({ ...f, sender_name: s.name || "", sender_phone: s.phone || "", sender_address: s.address || "", sender_province: s.province || "" })); } }).catch(() => {}); }, [isEdit]);
+  const [pasteMode, setPasteMode] = useState(false);
+  const [rawAddr, setRawAddr] = useState("");
+
+  // โหลดข้อมูลร้านค้าเริ่มต้น
+  useEffect(() => {
+    if (!isEdit && shops?.length) {
+      const def = shops.find(s => s.is_default) || shops[0];
+      if (def) setForm(f => ({ ...f, sender_name: def.name || "", sender_phone: def.phone || "", sender_address: def.address || "", sender_province: def.province || "", shop_id: def.id }));
+    }
+  }, [isEdit, shops]);
+
+  const selectShop = (shopId) => {
+    const shop = shops?.find(s => s.id === shopId);
+    if (shop) setForm(f => ({ ...f, sender_name: shop.name || "", sender_phone: shop.phone || "", sender_address: shop.address || "", sender_province: shop.province || "", shop_id: shop.id }));
+  };
+
+  const handleParseAddress = () => {
+    const parsed = parseThaiAddress(rawAddr);
+    setForm(f => ({
+      ...f,
+      receiver_name: parsed.name || f.receiver_name,
+      receiver_phone: parsed.phone || f.receiver_phone,
+      receiver_address: parsed.address || f.receiver_address,
+      receiver_subdistrict: parsed.subdistrict || f.receiver_subdistrict,
+      receiver_district: parsed.district || f.receiver_district,
+      receiver_province: parsed.province || f.receiver_province,
+      receiver_postal: parsed.postal || f.receiver_postal,
+    }));
+    setPasteMode(false);
+    setRawAddr("");
+  };
+
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const handleSave = async () => {
     if (!form.receiver_name || !form.receiver_phone) { alert("กรุณากรอกชื่อ+เบอร์ผู้รับ"); return; }
@@ -390,14 +460,39 @@ function ParcelForm({ parcel, user, onSave, onClose }) {
           <button onClick={onClose} style={{ background: "rgba(255,255,255,.2)", border: "none", color: "#fff", width: 36, height: 36, borderRadius: 10, fontSize: 18, cursor: "pointer" }}>✕</button>
         </div>
         <div style={{ padding: 24, maxHeight: "70vh", overflowY: "auto" }}>
-          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 700 }}>📤 ผู้ส่ง</h3>
+          {/* ═══ เลือกร้านค้า ═══ */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>🏪 ร้านค้า / ผู้ส่ง</h3>
+            {shops?.length > 0 && (
+              <select value={form.shop_id || ""} onChange={e => selectShop(e.target.value)} style={{ padding: "6px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 13, fontFamily: "inherit", background: "#fff", fontWeight: 600, color: "#dc2626" }}>
+                <option value="">-- เลือกร้าน --</option>
+                {shops.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            )}
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
             <F label="ชื่อ" k="sender_name" ph="ร้าน" /><F label="เบอร์" k="sender_phone" ph="08X..." />
             <F label="ที่อยู่" k="sender_address" ph="ที่อยู่" span={2} />
             <div><label style={L}>จังหวัด</label><select value={form.sender_province || ""} onChange={e => set("sender_province", e.target.value)} style={{ ...I, background: "#fff" }}><option value="">--</option>{PROVINCES.map(p => <option key={p}>{p}</option>)}</select></div>
             <F label="ไปรษณีย์" k="sender_postal" ph="XXXXX" />
           </div>
-          <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 700 }}>📥 ผู้รับ</h3>
+
+          {/* ═══ ผู้รับ + ปุ่มวางที่อยู่ ═══ */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>📥 ผู้รับ</h3>
+            <button onClick={() => setPasteMode(!pasteMode)} style={{ padding: "6px 14px", background: pasteMode ? "#dc2626" : "#eef2ff", color: pasteMode ? "#fff" : "#4f46e5", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
+              {pasteMode ? "✕ ปิด" : "📋 วางที่อยู่อัตโนมัติ"}
+            </button>
+          </div>
+
+          {pasteMode && (
+            <div style={{ marginBottom: 16, padding: 14, background: "#eef2ff", borderRadius: 12, border: "1.5px solid #c7d2fe" }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "#4f46e5", marginBottom: 6, display: "block" }}>วางชื่อ + ที่อยู่ทั้งหมดตรงนี้ ระบบจะจับอัตโนมัติ</label>
+              <textarea value={rawAddr} onChange={e => setRawAddr(e.target.value)} rows={4} placeholder={"สมชาย ใจดี 0891112222\n456 ม.5 ต.บ้านนา อ.เมือง จ.นครสวรรค์ 60000"} style={{ ...I, resize: "vertical", fontSize: 13, borderColor: "#a5b4fc" }} />
+              <button onClick={handleParseAddress} disabled={!rawAddr.trim()} style={{ marginTop: 8, padding: "8px 20px", background: rawAddr.trim() ? "#4f46e5" : "#94a3b8", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: rawAddr.trim() ? "pointer" : "not-allowed" }}>⚡ จับที่อยู่อัตโนมัติ</button>
+            </div>
+          )}
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
             <F label="ชื่อ *" k="receiver_name" ph="ชื่อ" /><F label="เบอร์ *" k="receiver_phone" ph="08X..." />
             <F label="ที่อยู่" k="receiver_address" ph="ที่อยู่" span={2} />
@@ -419,6 +514,255 @@ function ParcelForm({ parcel, user, onSave, onClose }) {
         <div style={{ padding: "16px 24px", borderTop: "1px solid #f1f5f9", display: "flex", gap: 10 }}>
           <button onClick={handleSave} disabled={saving} style={{ flex: 1, padding: 14, background: saving ? "#94a3b8" : "#dc2626", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>{saving ? "..." : isEdit ? "💾 บันทึก" : "📦 สร้าง"}</button>
           <button onClick={onClose} style={{ padding: "14px 28px", background: "#f1f5f9", border: "none", borderRadius: 12, fontWeight: 600, cursor: "pointer" }}>ยกเลิก</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// IMPORT EXCEL MODAL
+// ═══════════════════════════════════════════════════════════════
+function ImportModal({ user, shops, onSave, onClose }) {
+  const [rows, setRows] = useState([]);
+  const [importing, setImporting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [done, setDone] = useState(false);
+  const [selectedShop, setSelectedShop] = useState(shops?.find(s => s.is_default)?.id || shops?.[0]?.id || "");
+  const fileRef = useRef();
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      // Find header row (look for "MobileNo" or "เบอร์มือถือ")
+      let headerIdx = 0;
+      for (let i = 0; i < Math.min(5, data.length); i++) {
+        const row = data[i].map(String).join("|").toLowerCase();
+        if (row.includes("mobile") || row.includes("เบอร์") || row.includes("name")) { headerIdx = i; break; }
+      }
+      const parsed = [];
+      for (let i = headerIdx + 1; i < data.length; i++) {
+        const r = data[i];
+        if (!r || !r[0]) continue;
+        const phone = String(r[0] || "").replace(/[^0-9]/g, "");
+        const name = String(r[1] || "");
+        const address = String(r[2] || "");
+        const subdistrict = String(r[3] || "");
+        const district = String(r[4] || "");
+        const postal = String(r[5] || "");
+        const codAmount = parseFloat(r[10]) || 0;
+        const remark = String(r[11] || "");
+        if (!phone && !name) continue;
+        parsed.push({
+          receiver_phone: phone.startsWith("0") ? phone : "0" + phone,
+          receiver_name: name,
+          receiver_address: address,
+          receiver_subdistrict: subdistrict,
+          receiver_district: district,
+          receiver_postal: postal,
+          cod_enabled: codAmount > 0,
+          cod_amount: codAmount,
+          item_desc: String(r[7] || ""),
+          remark: remark,
+          _selected: true,
+        });
+      }
+      setRows(parsed);
+    } catch (err) { alert("อ่านไฟล์ไม่ได้: " + err.message); }
+  };
+
+  const handleImport = async () => {
+    const selected = rows.filter(r => r._selected);
+    if (!selected.length) { alert("ไม่มีรายการที่เลือก"); return; }
+    const shop = shops?.find(s => s.id === selectedShop);
+    setImporting(true);
+    let success = 0;
+    for (let i = 0; i < selected.length; i++) {
+      const r = selected[i];
+      try {
+        const parcelData = {
+          parcel_no: generateParcelNo(),
+          status: "draft",
+          sender_name: shop?.name || "", sender_phone: shop?.phone || "", sender_address: shop?.address || "", sender_province: shop?.province || "",
+          receiver_name: r.receiver_name, receiver_phone: r.receiver_phone, receiver_address: r.receiver_address,
+          receiver_subdistrict: r.receiver_subdistrict, receiver_district: r.receiver_district, receiver_postal: r.receiver_postal,
+          weight: 1, quantity: 1, item_desc: r.item_desc || "",
+          cod_enabled: r.cod_enabled, cod_amount: r.cod_amount || 0,
+          remark: r.remark || "",
+          created_by: user.id, created_by_name: user.display_name, shop_id: selectedShop || null,
+        };
+        await sb.insert("fx_parcels", parcelData);
+        success++;
+      } catch {}
+      setProgress(Math.round(((i + 1) / selected.length) * 100));
+      // Small delay to avoid rate limit
+      if (i % 5 === 4) await new Promise(r => setTimeout(r, 200));
+    }
+    setDone(true);
+    setTimeout(() => { alert(`นำเข้าสำเร็จ ${success}/${selected.length} รายการ`); onSave(); }, 300);
+  };
+
+  const toggleRow = (i) => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, _selected: !r._selected } : r));
+  const toggleAll = () => { const allSel = rows.every(r => r._selected); setRows(prev => prev.map(r => ({ ...r, _selected: !allSel }))); };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 30, overflowY: "auto" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "95%", maxWidth: 800, marginBottom: 40, overflow: "hidden" }}>
+        <div style={{ background: "linear-gradient(135deg,#059669,#10b981)", padding: "20px 24px", color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>📥 Import Excel</h2>
+          <button onClick={onClose} style={{ background: "rgba(255,255,255,.2)", border: "none", color: "#fff", width: 36, height: 36, borderRadius: 10, fontSize: 18, cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ padding: 24, maxHeight: "75vh", overflowY: "auto" }}>
+          {/* เลือกร้าน */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>🏪 ร้านผู้ส่ง:</label>
+            <select value={selectedShop} onChange={e => setSelectedShop(e.target.value)} style={{ padding: "8px 14px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontFamily: "inherit", flex: 1, minWidth: 150 }}>
+              <option value="">-- เลือกร้าน --</option>
+              {shops?.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+
+          {/* เลือกไฟล์ */}
+          {rows.length === 0 && (
+            <div onClick={() => fileRef.current?.click()} style={{ border: "2px dashed #d1d5db", borderRadius: 16, padding: 40, textAlign: "center", cursor: "pointer", background: "#fafafa" }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#475569" }}>คลิกเพื่อเลือกไฟล์ Excel</div>
+              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>รองรับ .xlsx, .xls (รูปแบบ Flash Express)</div>
+              <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} style={{ display: "none" }} />
+            </div>
+          )}
+
+          {/* แสดงข้อมูลที่อ่านได้ */}
+          {rows.length > 0 && !importing && (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#1e293b" }}>พบ {rows.length} รายการ (เลือก {rows.filter(r => r._selected).length})</span>
+                <button onClick={toggleAll} style={{ padding: "6px 14px", background: "#f1f5f9", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{rows.every(r => r._selected) ? "ยกเลิกทั้งหมด" : "เลือกทั้งหมด"}</button>
+              </div>
+              <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 12 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead><tr style={{ background: "#f8fafc" }}>
+                    <th style={{ padding: 8, width: 30 }}>✓</th>
+                    <th style={{ padding: 8, textAlign: "left" }}>ชื่อ</th>
+                    <th style={{ padding: 8, textAlign: "left" }}>เบอร์</th>
+                    <th style={{ padding: 8, textAlign: "left" }}>อำเภอ</th>
+                    <th style={{ padding: 8, textAlign: "right" }}>COD</th>
+                  </tr></thead>
+                  <tbody>{rows.map((r, i) => (
+                    <tr key={i} style={{ borderTop: "1px solid #f1f5f9", opacity: r._selected ? 1 : .4 }}>
+                      <td style={{ padding: 8, textAlign: "center" }}><input type="checkbox" checked={r._selected} onChange={() => toggleRow(i)} /></td>
+                      <td style={{ padding: 8, fontWeight: 600 }}>{r.receiver_name}</td>
+                      <td style={{ padding: 8, fontFamily: "monospace" }}>{r.receiver_phone}</td>
+                      <td style={{ padding: 8 }}>{r.receiver_district}</td>
+                      <td style={{ padding: 8, textAlign: "right", fontWeight: 600, color: r.cod_amount > 0 ? "#d97706" : "#cbd5e1" }}>{r.cod_amount > 0 ? `฿${r.cod_amount}` : "—"}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* Progress */}
+          {importing && (
+            <div style={{ textAlign: "center", padding: 40 }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>{done ? "✅" : "⏳"}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>{done ? "นำเข้าสำเร็จ!" : `กำลังนำเข้า... ${progress}%`}</div>
+              <div style={{ width: "100%", height: 8, background: "#e2e8f0", borderRadius: 4, marginTop: 12 }}>
+                <div style={{ width: `${progress}%`, height: "100%", background: "#059669", borderRadius: 4, transition: ".3s" }} />
+              </div>
+            </div>
+          )}
+        </div>
+        {rows.length > 0 && !importing && (
+          <div style={{ padding: "16px 24px", borderTop: "1px solid #f1f5f9", display: "flex", gap: 10 }}>
+            <button onClick={handleImport} disabled={!rows.some(r => r._selected)} style={{ flex: 1, padding: 14, background: rows.some(r => r._selected) ? "#059669" : "#94a3b8", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>📥 นำเข้า {rows.filter(r => r._selected).length} รายการ</button>
+            <button onClick={() => { setRows([]); }} style={{ padding: "14px 20px", background: "#f1f5f9", border: "none", borderRadius: 12, fontWeight: 600, cursor: "pointer" }}>เลือกไฟล์ใหม่</button>
+            <button onClick={onClose} style={{ padding: "14px 20px", background: "#f1f5f9", border: "none", borderRadius: 12, fontWeight: 600, cursor: "pointer" }}>ยกเลิก</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SHOP MANAGEMENT MODAL
+// ═══════════════════════════════════════════════════════════════
+function ShopManagement({ onClose, onUpdate, isDemo }) {
+  const [shops, setShops] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: "", phone: "", address: "", province: "" });
+  const [saving, setSaving] = useState(false);
+  const I = { width: "100%", padding: "10px 14px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 14, outline: "none", fontFamily: "inherit" };
+
+  const load = useCallback(async () => {
+    if (isDemo) { setShops([{ id: "s1", name: "ร้าน ABC Shop", phone: "081-234-5678", address: "123 สุขุมวิท", province: "กรุงเทพมหานคร", is_default: true, is_active: true }, { id: "s2", name: "ร้าน XYZ", phone: "089-999-8888", address: "456 พหลโยธิน", province: "เชียงใหม่", is_default: false, is_active: true }]); setLoading(false); return; }
+    try { const d = await sb.select("fx_shops", { order: "created_at.asc" }); setShops(d || []); } catch {} setLoading(false);
+  }, [isDemo]);
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async () => {
+    if (!form.name) { alert("กรุณากรอกชื่อร้าน"); return; }
+    setSaving(true);
+    try { await sb.insert("fx_shops", { ...form, is_active: true, is_default: shops.length === 0 }); setShowAdd(false); setForm({ name: "", phone: "", address: "", province: "" }); load(); onUpdate?.(); } catch (e) { alert(e.message); }
+    setSaving(false);
+  };
+
+  const toggleDefault = async (s) => {
+    if (isDemo) return;
+    try {
+      for (const sh of shops) { if (sh.is_default) await sb.update("fx_shops", sh.id, { is_default: false }); }
+      await sb.update("fx_shops", s.id, { is_default: true }); load(); onUpdate?.();
+    } catch (e) { alert(e.message); }
+  };
+
+  const deleteShop = async (s) => {
+    if (!confirm(`ลบร้าน ${s.name}?`)) return;
+    try { await sb.delete("fx_shops", s.id); load(); onUpdate?.(); } catch (e) { alert(e.message); }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9500, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "95%", maxWidth: 560, maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🏪 จัดการร้านค้า</h2>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setShowAdd(!showAdd)} style={{ padding: "8px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 10, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>＋ เพิ่มร้าน</button>
+            <button onClick={onClose} style={{ width: 36, height: 36, background: "#f1f5f9", border: "none", borderRadius: 10, fontSize: 18, cursor: "pointer" }}>✕</button>
+          </div>
+        </div>
+        {showAdd && (
+          <div style={{ padding: "16px 24px", background: "#fafafa", borderBottom: "1px solid #e2e8f0" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div><label style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>ชื่อร้าน *</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="ชื่อร้าน" style={I} /></div>
+              <div><label style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>เบอร์โทร</label><input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="08X..." style={I} /></div>
+              <div style={{ gridColumn: "span 2" }}><label style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>ที่อยู่</label><input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="ที่อยู่" style={I} /></div>
+              <div><label style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>จังหวัด</label><select value={form.province} onChange={e => setForm(f => ({ ...f, province: e.target.value }))} style={{ ...I, background: "#fff" }}><option value="">--</option>{PROVINCES.map(p => <option key={p}>{p}</option>)}</select></div>
+            </div>
+            <button onClick={handleAdd} disabled={saving} style={{ marginTop: 10, padding: "10px 20px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 600, cursor: "pointer" }}>{saving ? "..." : "✅ บันทึก"}</button>
+          </div>
+        )}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {loading ? <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>โหลด...</div> :
+          shops.map(s => (
+            <div key={s.id} style={{ padding: "14px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name} {s.is_default && <span style={{ fontSize: 10, background: "#ecfdf5", color: "#059669", padding: "2px 8px", borderRadius: 10, fontWeight: 600, marginLeft: 6 }}>ค่าเริ่มต้น</span>}</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>{s.phone} · {s.address} {s.province}</div>
+              </div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {!s.is_default && <button title="ตั้งเป็นค่าเริ่มต้น" onClick={() => toggleDefault(s)} style={{ width: 30, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>⭐</button>}
+                <button title="ลบ" onClick={() => deleteShop(s)} style={{ width: 30, height: 30, border: "1px solid #fca5a5", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑️</button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -472,6 +816,9 @@ export default function FlashBackend() {
   const [printParcel, setPrintParcel] = useState(null);
   const [viewParcel, setViewParcel] = useState(null);
   const [showUsers, setShowUsers] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [showShops, setShowShops] = useState(false);
+  const [shops, setShops] = useState([]);
   const [page, setPage] = useState(0);
   const PER_PAGE = 20;
   const isDemo = SUPABASE_URL.includes("YOUR_PROJECT");
@@ -492,6 +839,13 @@ export default function FlashBackend() {
 
   useEffect(() => { if (user) loadParcels(); }, [user, loadParcels]);
   useEffect(() => { if (!user || isDemo) return; const unsub = sb.realtime("fx_parcels", () => loadParcels()); return unsub; }, [user, isDemo, loadParcels]);
+
+  // Load shops
+  const loadShops = useCallback(async () => {
+    if (isDemo) { setShops([{ id: "s1", name: "ร้าน ABC Shop", phone: "081-234-5678", address: "123 สุขุมวิท", province: "กรุงเทพมหานคร", is_default: true, is_active: true }, { id: "s2", name: "ร้าน XYZ Online", phone: "089-999-8888", address: "456 พหลโยธิน", province: "เชียงใหม่", is_default: false, is_active: true }]); return; }
+    try { const d = await sb.select("fx_shops", { order: "created_at.asc" }); setShops(d || []); } catch {}
+  }, [isDemo]);
+  useEffect(() => { if (user) loadShops(); }, [user, loadShops]);
 
   const filtered = useMemo(() => {
     let list = parcels;
@@ -554,6 +908,8 @@ export default function FlashBackend() {
                 <div><div style={{ fontSize: 13, fontWeight: 600 }}>{user.display_name}</div><div style={{ fontSize: 10, opacity: .6 }}>{role.icon} {role.label}</div></div>
               </div>
               {perm.users && <button onClick={() => setShowUsers(true)} style={{ padding: "8px 14px", background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>👥</button>}
+              {perm.create && <button onClick={() => setShowShops(true)} style={{ padding: "8px 14px", background: "rgba(255,255,255,.1)", border: "1px solid rgba(255,255,255,.15)", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>🏪</button>}
+              {perm.create && <button onClick={() => setShowImport(true)} style={{ padding: "8px 14px", background: "rgba(16,185,129,.8)", border: "none", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📥 Import</button>}
               {perm.create && <button onClick={() => { setEditParcel(null); setShowForm(true); }} style={{ padding: "8px 16px", background: "#e53e3e", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>＋ สร้างพัสดุ</button>}
               <button onClick={() => { setUser(null); setParcels([]); }} style={{ padding: "8px 14px", background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 10, color: "#f87171", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>🚪</button>
             </div>
@@ -612,10 +968,12 @@ export default function FlashBackend() {
         </div>
       </div></div>}
       {/* MODALS */}
-      {showForm && <ParcelForm parcel={editParcel} user={user} onClose={() => setShowForm(false)} onSave={() => { setShowForm(false); loadParcels(); }} />}
+      {showForm && <ParcelForm parcel={editParcel} user={user} shops={shops} onClose={() => setShowForm(false)} onSave={() => { setShowForm(false); loadParcels(); }} />}
       {statusParcel && <StatusModal parcel={statusParcel} onClose={() => setStatusParcel(null)} onSave={() => { setStatusParcel(null); loadParcels(); }} />}
       {printParcel && <PrintLabel parcel={printParcel} onClose={() => setPrintParcel(null)} />}
       {showUsers && <UserManagement onClose={() => setShowUsers(false)} isDemo={isDemo} />}
+      {showImport && <ImportModal user={user} shops={shops} onClose={() => setShowImport(false)} onSave={() => { setShowImport(false); loadParcels(); }} />}
+      {showShops && <ShopManagement onClose={() => setShowShops(false)} onUpdate={loadShops} isDemo={isDemo} />}
     </div>
   );
 }
