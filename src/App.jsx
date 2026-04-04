@@ -60,6 +60,8 @@ const flashApi = {
       dstPostalCode: String(parcel.receiver_postal),
       dstDetailAddress: [parcel.receiver_address, parcel.receiver_subdistrict, parcel.receiver_district, parcel.receiver_province].filter(Boolean).join(" ") || parcel.receiver_name,
       articleCategory: "1",
+      expressCategory: parcel.cod_enabled ? "1" : "0",
+      codEnabled: parcel.cod_enabled ? "1" : "0",
       weight: String(Math.max(1, Math.round((parcel.weight || 1) * 1000))),
     };
     // Optional: sender province/postal — ถ้าไม่มี postal ดึงจากที่อยู่
@@ -69,10 +71,8 @@ const flashApi = {
     if (senderPostal) params.srcPostalCode = String(senderPostal);
     // Optional: receiver subdistrict
     if (parcel.receiver_subdistrict) params.dstDistrictName = parcel.receiver_subdistrict;
-    // COD
+    // COD amount
     if (parcel.cod_enabled && parcel.cod_amount > 0) {
-      params.expressCategory = "1";
-      params.codEnabled = "1";
       params.codAmount = String(Math.round(parcel.cod_amount * 100));
     }
     console.log("Flash API params (before sign):", JSON.stringify(params, null, 2));
