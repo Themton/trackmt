@@ -929,8 +929,9 @@ export default function FlashBackend() {
   const [flashLoading, setFlashLoading] = useState(null);
   const createFlashOrder = async (p) => {
     if (p.flash_pno) { alert("พัสดุนี้มีเลข Tracking แล้ว: " + p.flash_pno); return; }
-    if (!p.receiver_name || !p.receiver_phone) { alert("กรุณากรอกข้อมูลผู้รับก่อน"); return; }
-    if (!confirm(`สร้างเลข Tracking Flash Express\nให้พัสดุ ${p.parcel_no}?`)) return;
+    if (!p.receiver_name || !p.receiver_phone) { alert(`❌ ${p.parcel_no}\nกรุณากรอกชื่อและเบอร์ผู้รับก่อน`); return; }
+    if (!p.receiver_province && !p.receiver_postal) { alert(`❌ ${p.parcel_no}\nกรุณากรอกจังหวัดหรือรหัสไปรษณีย์ผู้รับ\n\nกด ✏️ แก้ไข → กรอกที่อยู่ให้ครบ`); return; }
+    if (!confirm(`สร้างเลข Tracking Flash Express\nให้พัสดุ ${p.parcel_no}?\n\nผู้รับ: ${p.receiver_name}\nเบอร์: ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "—"}\nอำเภอ: ${p.receiver_district || "—"}`)) return;
     setFlashLoading(p.id);
     try {
       const result = await flashApi.createOrder(p);
