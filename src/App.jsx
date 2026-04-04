@@ -18,16 +18,17 @@ const FLASH_API_URL = "https://upabase-proxy.themtja.workers.dev/flash";
 // Flash Express API Helper
 const flashApi = {
   async sign(params) {
-    const sorted = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join("&");
-    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sorted + FLASH_API_KEY));
+    const keys = Object.keys(params).filter(k => k !== 'sign' && params[k] !== '' && params[k] !== null && params[k] !== undefined).sort();
+    const stringA = keys.map(k => `${k}=${params[k]}`).join("&");
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stringA + "&key=" + FLASH_API_KEY));
     return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
   },
   async createOrder(parcel) {
     const params = {
       mchId: FLASH_MCH_ID,
-      nonceStr: String(Date.now()),
+      nonceStr: String(Date.now()) + Math.random().toString(36).substring(2, 8),
       outTradeNo: parcel.parcel_no,
-      expressCategory: parcel.cod_enabled ? 1 : 0,
+      expressCategory: parcel.cod_enabled ? "1" : "0",
       srcName: parcel.sender_name || "",
       srcPhone: parcel.sender_phone || "",
       srcProvinceName: parcel.sender_province || "",
@@ -40,13 +41,12 @@ const flashApi = {
       dstDistrictName: parcel.receiver_subdistrict || "",
       dstDetailAddress: `${parcel.receiver_address || ""} ${parcel.receiver_subdistrict || ""} ${parcel.receiver_district || ""} ${parcel.receiver_province || ""}`.trim(),
       dstPostalCode: parcel.receiver_postal || "",
-      articleCategory: 1,
-      weight: Math.max(1, Math.round((parcel.weight || 1) * 1000)),
+      articleCategory: "1",
+      weight: String(Math.max(1, Math.round((parcel.weight || 1) * 1000))),
     };
     if (parcel.cod_enabled && parcel.cod_amount > 0) {
-      params.codEnabled = 1;
-      params.codAmount = Math.round(parcel.cod_amount * 100);
-      params.insured = 1;
+      params.codEnabled = "1";
+      params.codAmount = String(Math.round(parcel.cod_amount * 100));
     }
     Object.keys(params).forEach(k => { if (params[k] === "" || params[k] === undefined || params[k] === null) delete params[k]; });
     params.sign = await this.sign(params);
