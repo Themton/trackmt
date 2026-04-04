@@ -12,7 +12,7 @@ const BASE_URL = SUPABASE_URL; // ใช้ Supabase ตรง
 // FLASH EXPRESS API CONFIG
 // ═══════════════════════════════════════════════════════════════
 // Toggle: true = Training (ทดสอบ), false = Production (ใช้งานจริง)
-const FLASH_TRAINING = true;
+const FLASH_TRAINING = false;
 
 const FLASH_MCH_ID = FLASH_TRAINING ? "CA5610" : "CBC9351";
 const FLASH_API_KEY = FLASH_TRAINING
