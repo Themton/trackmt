@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import ADDR_DB from "./addr.js";
 
 // ═══════════════════════════════════════════════════════════════
 // CONFIG
@@ -378,9 +379,17 @@ function parseThaiAddress(raw) {
   // Phone
   const phoneMatch = full.match(/(\d[\d-]{8,})/);
   if (phoneMatch) r.phone = phoneMatch[1].replace(/-/g, "");
-  // Postal
+  // Postal → auto-fill from ADDR_DB
   const postalMatch = full.match(/\b(\d{5})\b/);
-  if (postalMatch) r.postal = postalMatch[1];
+  if (postalMatch) {
+    r.postal = postalMatch[1];
+    const addrList = ADDR_DB[r.postal];
+    if (addrList?.length) {
+      r.province = addrList[0].p;
+      r.district = addrList[0].d;
+      r.subdistrict = addrList[0].s;
+    }
+  }
   // Province
   const provMatch = full.match(/(จ\.|จังหวัด)\s*([ก-๙]+)/);
   if (provMatch) r.province = provMatch[2];
@@ -496,9 +505,32 @@ function ParcelForm({ parcel, user, shops, onSave, onClose }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
             <F label="ชื่อ *" k="receiver_name" ph="ชื่อ" /><F label="เบอร์ *" k="receiver_phone" ph="08X..." />
             <F label="ที่อยู่" k="receiver_address" ph="ที่อยู่" span={2} />
+            <div style={{ gridColumn: "span 2" }}>
+              <label style={L}>รหัสไปรษณีย์ (พิมพ์แล้วเติมที่อยู่อัตโนมัติ)</label>
+              <input value={form.receiver_postal || ""} onChange={e => {
+                const v = e.target.value.replace(/\D/g, "").slice(0, 5);
+                set("receiver_postal", v);
+                if (v.length === 5 && ADDR_DB[v]) {
+                  const list = ADDR_DB[v];
+                  if (list.length === 1) {
+                    set("receiver_province", list[0].p); set("receiver_district", list[0].d); set("receiver_subdistrict", list[0].s);
+                    setForm(f => ({ ...f, receiver_postal: v, receiver_province: list[0].p, receiver_district: list[0].d, receiver_subdistrict: list[0].s }));
+                  }
+                }
+              }} placeholder="XXXXX → เติมจังหวัด อำเภอ ตำบล อัตโนมัติ" style={{ ...I, borderColor: "#6366f1", fontWeight: 600 }} />
+              {form.receiver_postal?.length === 5 && ADDR_DB[form.receiver_postal]?.length > 1 && (
+                <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {ADDR_DB[form.receiver_postal].map((a, i) => (
+                    <button key={i} onClick={() => setForm(f => ({ ...f, receiver_province: a.p, receiver_district: a.d, receiver_subdistrict: a.s }))}
+                      style={{ padding: "4px 10px", fontSize: 11, border: form.receiver_subdistrict === a.s && form.receiver_district === a.d ? "2px solid #6366f1" : "1px solid #e2e8f0", borderRadius: 8, background: form.receiver_subdistrict === a.s && form.receiver_district === a.d ? "#eef2ff" : "#fff", cursor: "pointer", fontWeight: 500 }}>
+                      {a.s} · {a.d}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <F label="ตำบล" k="receiver_subdistrict" ph="ตำบล" /><F label="อำเภอ" k="receiver_district" ph="อำเภอ" />
             <div><label style={L}>จังหวัด</label><select value={form.receiver_province || ""} onChange={e => set("receiver_province", e.target.value)} style={{ ...I, background: "#fff" }}><option value="">--</option>{PROVINCES.map(p => <option key={p}>{p}</option>)}</select></div>
-            <F label="ไปรษณีย์" k="receiver_postal" ph="XXXXX" />
           </div>
           <h3 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 700 }}>📦 พัสดุ</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
