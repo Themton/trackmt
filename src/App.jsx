@@ -5,14 +5,14 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 // ═══════════════════════════════════════════════════════════════
 const SUPABASE_URL = "https://fnkohtdpwdwedjrtklre.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua29odGRwd2R3ZWRqcnRrbHJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzNTA3MjIsImV4cCI6MjA4ODkyNjcyMn0.AuotNxQWgKiSYpS7kLBMm3jOCFhJWsXy31yaqG6dwic";
-const BASE_URL = SUPABASE_URL;
+const BASE_URL = "https://upabase-proxy.themtja.workers.dev";
 
 // ═══════════════════════════════════════════════════════════════
 // FLASH EXPRESS API CONFIG (Production)
 // ═══════════════════════════════════════════════════════════════
 const FLASH_MCH_ID = "CBC9351";
 const FLASH_API_KEY = "0d0b630e5e245149fe120a062c342b3f41ffaea51597464841e97d324b792334";
-const FLASH_API_URL = "https://open-api.flashexpress.com";
+const FLASH_API_URL = "https://upabase-proxy.themtja.workers.dev/flash";
 
 // Flash Express API Helper
 const flashApi = {
