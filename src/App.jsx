@@ -868,6 +868,7 @@ export default function FlashBackend() {
   const [showShops, setShowShops] = useState(false);
   const [shops, setShops] = useState([]);
   const [page, setPage] = useState(0);
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const PER_PAGE = 20;
   const isDemo = SUPABASE_URL.includes("YOUR_PROJECT");
   const perm = user ? (CAN[user.role] || {}) : {};
@@ -936,6 +937,36 @@ export default function FlashBackend() {
     setFlashLoading(null);
   };
 
+  // Batch สร้างเลข Tracking
+  const [batchProgress, setBatchProgress] = useState(null);
+  const batchCreateFlash = async () => {
+    const targets = parcels.filter(p => selectedIds.has(p.id) && !p.flash_pno && p.receiver_name && p.receiver_phone);
+    if (!targets.length) { alert("ไม่มีรายการที่เลือก (ต้องยังไม่มีเลข Tracking + มีข้อมูลผู้รับ)"); return; }
+    if (!confirm(`สร้างเลข Tracking Flash Express ${targets.length} รายการ?`)) return;
+    setBatchProgress({ total: targets.length, done: 0, success: 0, errors: [] });
+    let success = 0; const errors = [];
+    for (let i = 0; i < targets.length; i++) {
+      const p = targets[i];
+      try {
+        const result = await flashApi.createOrder(p);
+        if (result.code === 1 && result.data) {
+          const updates = { flash_pno: result.data.pno || "", flash_sort_code: result.data.sortCode || result.data.dstStoreName || "", flash_api_response: result.data, status: "created" };
+          if (!isDemo) await sb.update("fx_parcels", p.id, updates);
+          success++;
+        } else { errors.push(`${p.parcel_no}: ${result.message || "error"}`); }
+      } catch (e) { errors.push(`${p.parcel_no}: ${e.message}`); }
+      setBatchProgress({ total: targets.length, done: i + 1, success, errors: [...errors] });
+      if (i % 3 === 2) await new Promise(r => setTimeout(r, 300));
+    }
+    alert(`สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ${errors.length ? "\n\nErrors:\n" + errors.join("\n") : ""}`);
+    setBatchProgress(null);
+    setSelectedIds(new Set());
+    loadParcels();
+  };
+
+  const toggleSelect = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleSelectAll = () => { const ids = paged.map(p => p.id); const allSel = ids.every(id => selectedIds.has(id)); setSelectedIds(prev => { const n = new Set(prev); ids.forEach(id => allSel ? n.delete(id) : n.add(id)); return n; }); };
+
   if (!user) return <LoginScreen onLogin={handleLogin} isDemo={isDemo} />;
   const role = ROLES[user.role] || ROLES.shipping;
 
@@ -978,12 +1009,29 @@ export default function FlashBackend() {
           {[{ key: "ALL", label: "ทั้งหมด", icon: "📋", color: "#475569" }, ...STATUSES].map(s => { const cnt = s.key === "ALL" ? parcels.length : parcels.filter(p => p.status === s.key).length; const active = statusFilter === s.key; return <button key={s.key} onClick={() => { setStatusFilter(s.key); setPage(0); }} style={{ padding: "9px 12px", border: "none", borderBottom: active ? `3px solid ${s.color}` : "3px solid transparent", background: "transparent", color: active ? s.color : cnt ? "#475569" : "#cbd5e1", fontSize: 11, fontWeight: active ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", minWidth: 68 }}>{s.icon} {s.label}{cnt > 0 && <span style={{ marginLeft: 3, background: active ? s.color : "#e2e8f0", color: active ? "#fff" : "#64748b", padding: "1px 5px", borderRadius: 8, fontSize: 10, fontWeight: 700 }}>{cnt}</span>}</button>; })}
         </div>
         <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", overflow: "hidden" }}>
+          {/* Batch Action Bar */}
+          {selectedIds.size > 0 && perm.status && (
+            <div style={{ padding: "10px 16px", background: "linear-gradient(135deg,#eef2ff,#faf5ff)", borderBottom: "1px solid #c7d2fe", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#4f46e5" }}>✓ เลือก {selectedIds.size} รายการ</span>
+              <button onClick={batchCreateFlash} disabled={!!batchProgress} style={{ padding: "7px 16px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>⚡ สร้างเลข Tracking ({parcels.filter(p => selectedIds.has(p.id) && !p.flash_pno).length})</button>
+              <button onClick={() => setSelectedIds(new Set())} style={{ padding: "7px 14px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
+              {batchProgress && (
+                <div style={{ flex: 1, minWidth: 150 }}>
+                  <div style={{ fontSize: 11, color: "#6366f1", marginBottom: 3 }}>กำลังสร้าง... {batchProgress.done}/{batchProgress.total} (สำเร็จ {batchProgress.success})</div>
+                  <div style={{ width: "100%", height: 6, background: "#e2e8f0", borderRadius: 3 }}><div style={{ width: `${(batchProgress.done / batchProgress.total) * 100}%`, height: "100%", background: "#6366f1", borderRadius: 3, transition: ".3s" }} /></div>
+                </div>
+              )}
+            </div>
+          )}
           {loading ? <div style={{ padding: 60, textAlign: "center", color: "#94a3b8" }}>⏳ กำลังโหลด...</div> : !paged.length ? <div style={{ padding: 60, textAlign: "center", color: "#94a3b8" }}><div style={{ fontSize: 40 }}>📭</div><div style={{ fontSize: 15, fontWeight: 600, marginTop: 8 }}>ไม่พบพัสดุ</div></div> : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead><tr style={{ background: "#f8fafc" }}>{["เลขพัสดุ", "ผู้รับ", "จังหวัด", "Tracking", "สถานะ", ...(perm.viewCOD ? ["COD"] : []), "ผู้สร้าง", "จัดการ"].map((h, i) => <th key={i} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+                <thead><tr style={{ background: "#f8fafc" }}>
+                  {perm.status && <th style={{ padding: "10px 8px", width: 36, borderBottom: "1px solid #e2e8f0" }}><input type="checkbox" checked={paged.length > 0 && paged.every(p => selectedIds.has(p.id))} onChange={toggleSelectAll} style={{ cursor: "pointer" }} /></th>}
+                  {["เลขพัสดุ", "ผู้รับ", "จังหวัด", "Tracking", "สถานะ", ...(perm.viewCOD ? ["COD"] : []), "ผู้สร้าง", "จัดการ"].map((h, i) => <th key={i} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
                 <tbody>{paged.map((p, i) => { const st = getStatus(p.status); return (
-                  <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 ? "#fafafa" : "#fff" }}>
+                  <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedIds.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
+                    {perm.status && <td style={{ padding: "10px 8px", textAlign: "center" }}><input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} style={{ cursor: "pointer" }} /></td>}
                     <td style={{ padding: "10px 12px" }}><div style={{ cursor: "pointer", fontFamily: "monospace", fontWeight: 600, fontSize: 12 }} onClick={() => setViewParcel(p)}>{p.parcel_no}</div><div style={{ fontSize: 10, color: "#94a3b8" }}>{new Date(p.created_at).toLocaleDateString("th-TH", { day: "2-digit", month: "short" })}</div></td>
                     <td style={{ padding: "10px 12px" }}><div style={{ fontWeight: 600 }}>{p.receiver_name}</div><div style={{ fontSize: 11, color: "#94a3b8" }}>{p.receiver_phone}</div></td>
                     <td style={{ padding: "10px 12px", fontSize: 12, color: "#64748b" }}>{p.receiver_province || "—"}</td>
