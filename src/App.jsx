@@ -1003,6 +1003,19 @@ export default function FlashBackend() {
   const toggleSelect = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleSelectAll = () => { const ids = paged.map(p => p.id); const allSel = ids.every(id => selectedIds.has(id)); setSelectedIds(prev => { const n = new Set(prev); ids.forEach(id => allSel ? n.delete(id) : n.add(id)); return n; }); };
 
+  const batchDelete = async () => {
+    const targets = parcels.filter(p => selectedIds.has(p.id));
+    if (!targets.length) return;
+    if (!confirm(`ลบ ${targets.length} รายการ?\n\n${targets.map(p => p.parcel_no + " — " + p.receiver_name).join("\n")}`)) return;
+    let success = 0;
+    for (const p of targets) {
+      try { if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); } else { await sb.delete("fx_parcels", p.id); } success++; } catch {}
+    }
+    alert(`ลบสำเร็จ ${success}/${targets.length} รายการ`);
+    setSelectedIds(new Set());
+    loadParcels();
+  };
+
   if (!user) return <LoginScreen onLogin={handleLogin} isDemo={isDemo} />;
   const role = ROLES[user.role] || ROLES.shipping;
 
@@ -1108,6 +1121,7 @@ export default function FlashBackend() {
                   <div style={{ padding: "10px 16px", background: "linear-gradient(135deg,#eef2ff,#faf5ff)", borderBottom: "1px solid #c7d2fe", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#4f46e5" }}>✓ เลือก {selectedIds.size} รายการ</span>
                     <button onClick={batchCreateFlash} disabled={!!batchProgress} style={{ padding: "7px 16px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚡ สร้างเลข Tracking ({parcels.filter(p => selectedIds.has(p.id) && !p.flash_pno).length})</button>
+                    {perm.delete && <button onClick={batchDelete} style={{ padding: "7px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🗑️ ลบ ({selectedIds.size})</button>}
                     <button onClick={() => setSelectedIds(new Set())} style={{ padding: "7px 14px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
                     {batchProgress && <div style={{ flex: 1, minWidth: 150 }}><div style={{ fontSize: 11, color: "#6366f1", marginBottom: 3 }}>กำลังสร้าง... {batchProgress.done}/{batchProgress.total}</div><div style={{ width: "100%", height: 6, background: "#e2e8f0", borderRadius: 3 }}><div style={{ width: `${(batchProgress.done / batchProgress.total) * 100}%`, height: "100%", background: "#6366f1", borderRadius: 3, transition: ".3s" }} /></div></div>}
                   </div>
