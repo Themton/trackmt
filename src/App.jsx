@@ -1386,33 +1386,28 @@ export default function FlashBackend() {
                 {loading ? <div style={{ padding: 60, textAlign: "center", color: "#94a3b8" }}>⏳ กำลังโหลด...</div> : !paged.length ? <div style={{ padding: 60, textAlign: "center", color: "#94a3b8" }}><div style={{ fontSize: 40 }}>📭</div><div style={{ fontSize: 15, fontWeight: 600, marginTop: 8 }}>ไม่พบพัสดุ</div></div> : (
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                      <thead><tr style={{ background: "#f8fafc" }}>
-                        {perm.status && <th style={{ padding: "10px 8px", width: 36, borderBottom: "1px solid #e2e8f0" }}><input type="checkbox" checked={paged.length > 0 && paged.every(p => selectedIds.has(p.id))} onChange={toggleSelectAll} style={{ cursor: "pointer" }} /></th>}
-                        {["ผู้รับ", "ที่อยู่", "Tracking", "สถานะ", ...(perm.viewCOD ? ["COD"] : []), "หมายเหตุ", "จัดการ"].map((h, i) => <th key={i} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
-                      <tbody>{paged.map((p, i) => { const st = getStatus(p.status); return (
+                      <thead><tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                        {perm.status && <th style={{ padding: "10px 8px", width: 36 }}><input type="checkbox" checked={paged.length > 0 && paged.every(p => selectedIds.has(p.id))} onChange={toggleSelectAll} style={{ cursor: "pointer" }} /></th>}
+                        <th style={{ padding: "10px 8px", width: 30, color: "#64748b", fontSize: 11 }}>🖨️</th>
+                        {["วันที่", "เวลา", "ลูกค้า", "เบอร์โทรศัพท์", "สถานะ", "หมายเลขการติดตาม", ...(perm.viewCOD ? ["COD"] : []), "ร้านค้า", "การปฏิบัติ"].map((h, i) => <th key={i} style={{ padding: "10px 10px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>)}
+                      </tr></thead>
+                      <tbody>{paged.map((p, i) => { const st = getStatus(p.status); const d = new Date(p.created_at); return (
                         <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedIds.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
-                          {perm.status && <td style={{ padding: "10px 8px", textAlign: "center", verticalAlign: "top" }}><input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} style={{ cursor: "pointer" }} /></td>}
-                          <td style={{ padding: "10px 12px", verticalAlign: "top", minWidth: 140 }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, cursor: "pointer" }} onClick={() => setViewParcel(p)}>{p.receiver_name}</div>
-                            <div style={{ fontSize: 12, fontFamily: "monospace", color: "#475569", marginTop: 2 }}>{p.receiver_phone}</div>
-                            <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>{new Date(p.created_at).toLocaleDateString("th-TH", { day: "2-digit", month: "short", year: "2-digit" })}</div>
-                          </td>
-                          <td style={{ padding: "10px 12px", verticalAlign: "top", fontSize: 11, color: "#475569", lineHeight: 1.4, maxWidth: 220 }}>
-                            <div>{p.receiver_address}</div>
-                            <div style={{ fontWeight: 600 }}>{[p.receiver_subdistrict, p.receiver_district].filter(Boolean).join(", ")}</div>
-                            <div style={{ fontWeight: 600, color: "#1e293b" }}>{p.receiver_province} {p.receiver_postal}</div>
-                          </td>
-                          <td style={{ padding: "10px 12px", verticalAlign: "top" }}>
-                            {p.flash_pno ? <><div style={{ fontFamily: "monospace", fontSize: 11, background: "#eef2ff", color: "#4f46e5", padding: "3px 7px", borderRadius: 6, fontWeight: 600, display: "inline-block" }}>{p.flash_pno}</div>{p.flash_sort_code && <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", marginTop: 3 }}>{p.flash_sort_code}</div>}</> : <span style={{ fontSize: 11, color: "#cbd5e1" }}>—</span>}
-                          </td>
-                          <td style={{ padding: "10px 12px", verticalAlign: "top" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 20, background: st.bg, color: st.color, fontSize: 11, fontWeight: 600 }}>{st.icon} {st.label}</span></td>
-                          {perm.viewCOD && <td style={{ padding: "10px 12px", verticalAlign: "top" }}>{p.cod_enabled ? <span style={{ fontWeight: 700, color: "#d97706", fontSize: 13 }}>฿{Number(p.cod_amount || 0).toLocaleString()}</span> : <span style={{ fontSize: 11, color: "#cbd5e1" }}>—</span>}</td>}
-                          <td style={{ padding: "10px 12px", verticalAlign: "top", fontSize: 11, color: "#64748b", maxWidth: 160 }}>{p.remark || "—"}</td>
-                          <td style={{ padding: "10px 8px", verticalAlign: "top" }}><div style={{ display: "flex", gap: 3 }}>
-                            {perm.status && !p.flash_pno && <button title="สร้างเลข Tracking" onClick={() => createFlashOrder(p)} disabled={flashLoading === p.id} style={{ width: 28, height: 28, border: "1px solid #fbbf24", borderRadius: 6, background: flashLoading === p.id ? "#fef3c7" : "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>{flashLoading === p.id ? "⏳" : "⚡"}</button>}
-                            {perm.edit && <button title="แก้ไข" onClick={() => { setEditParcel(p); setShowForm(true); }} style={{ width: 28, height: 28, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</button>}
-                            {perm.print && <button title="ปริ้น" onClick={() => { setPrintParcel(p); if (!p.label_printed) markPrinted(p); }} style={{ width: 28, height: 28, border: "1px solid #e2e8f0", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>🖨️</button>}
-                            {perm.delete && <button title="ลบ" onClick={() => handleDelete(p)} style={{ width: 28, height: 28, border: "1px solid #fca5a5", borderRadius: 6, background: "#fff", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑️</button>}
+                          {perm.status && <td style={{ padding: "8px", textAlign: "center" }}><input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} style={{ cursor: "pointer" }} /></td>}
+                          <td style={{ padding: "8px", textAlign: "center" }}>{p.flash_pno ? <span style={{ cursor: "pointer", fontSize: 14 }} onClick={() => { setPrintParcel(p); if (!p.label_printed) markPrinted(p); }}>🖨️</span> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                          <td style={{ padding: "8px 10px", fontSize: 12, whiteSpace: "nowrap" }}>{d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                          <td style={{ padding: "8px 10px", fontSize: 12, whiteSpace: "nowrap", color: "#64748b" }}>{d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} น.</td>
+                          <td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => setViewParcel(p)}>{p.receiver_name}</td>
+                          <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
+                          <td style={{ padding: "8px 10px" }}><span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: st.bg, color: st.color }}>{st.label}</span></td>
+                          <td style={{ padding: "8px 10px" }}>{p.flash_pno ? <span style={{ color: "#0ea5e9", fontWeight: 600, fontSize: 12 }}>{p.flash_pno} {p.flash_sort_code ? "📋" : ""}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}</td>
+                          {perm.viewCOD && <td style={{ padding: "8px 10px", fontWeight: 700, fontSize: 13 }}>{p.cod_enabled ? <span style={{ color: "#000" }}>{Number(p.cod_amount || 0).toLocaleString()}</span> : ""}</td>}
+                          <td style={{ padding: "8px 10px", fontSize: 11, fontWeight: 600 }}>{p.sender_name || "—"}</td>
+                          <td style={{ padding: "8px 6px" }}><div style={{ display: "flex", gap: 2 }}>
+                            {perm.status && !p.flash_pno && <button title="สร้างเลข" onClick={() => createFlashOrder(p)} disabled={flashLoading === p.id} style={{ width: 26, height: 26, border: "1px solid #fbbf24", borderRadius: 4, background: flashLoading === p.id ? "#fef3c7" : "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{flashLoading === p.id ? "⏳" : "⚡"}</button>}
+                            {perm.edit && <button title="แก้ไข" onClick={() => { setEditParcel(p); setShowForm(true); }} style={{ width: 26, height: 26, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</button>}
+                            {perm.delete && <button title="ลบ" onClick={() => handleDelete(p)} style={{ width: 26, height: 26, border: "1px solid #fca5a5", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑️</button>}
+                            <button title="ดูรายละเอียด" onClick={() => setViewParcel(p)} style={{ width: 26, height: 26, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>👁️</button>
                           </div></td>
                         </tr>); })}</tbody>
                     </table>
