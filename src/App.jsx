@@ -28,56 +28,51 @@ const flashApi = {
     params.sign = await this.sign(params);
     const body = new URLSearchParams(params).toString();
     const res = await fetch(`${FLASH_API_URL}/open/v1/ping`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
-    return res.json();
+    const text = await res.text();
+    try { return JSON.parse(text); } catch { return { code: 1, message: text }; }
   },
   async createOrder(parcel) {
-    // Validate required fields
+    // Validate
     const missing = [];
     if (!parcel.sender_name) missing.push("ชื่อผู้ส่ง");
     if (!parcel.sender_phone) missing.push("เบอร์ผู้ส่ง");
     if (!parcel.receiver_name) missing.push("ชื่อผู้รับ");
     if (!parcel.receiver_phone) missing.push("เบอร์ผู้รับ");
-    if (!parcel.receiver_province) missing.push("จังหวัดผู้รับ");
     if (!parcel.receiver_district) missing.push("อำเภอผู้รับ");
     if (!parcel.receiver_postal) missing.push("รหัสไปรษณีย์ผู้รับ");
     if (missing.length) throw new Error("ข้อมูลไม่ครบ:\n" + missing.join(", "));
 
-    // Map province — Flash ใช้ "กรุงเทพ" ไม่ใช่ "กรุงเทพมหานคร"
-    const mapProv = (p) => (p === "กรุงเทพมหานคร" ? "กรุงเทพ" : p);
+    const mapProv = (p) => p === "กรุงเทพมหานคร" ? "กรุงเทพ" : p;
+    const uniqueId = "O" + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
-    // outTradeNo ต้องไม่ซ้ำ + ไม่มีอักขระพิเศษ
-    const uniqueId = parcel.parcel_no.replace(/[^a-zA-Z0-9]/g, "") + Date.now().toString(36);
-
+    // Build params — ตาม Flash Express docs เป๊ะ
     const params = {
       mchId: FLASH_MCH_ID,
       nonceStr: String(Date.now()) + Math.random().toString(36).substring(2, 8),
       outTradeNo: uniqueId,
-      expressCategory: parcel.cod_enabled ? "1" : "0",
       srcName: parcel.sender_name,
       srcPhone: parcel.sender_phone,
-      srcProvinceName: mapProv(parcel.sender_province || ""),
-      srcCityName: parcel.sender_district || "",
-      srcDistrictName: parcel.sender_subdistrict || "",
       srcDetailAddress: parcel.sender_address || parcel.sender_name,
-      srcPostalCode: parcel.sender_postal || "",
       dstName: parcel.receiver_name,
       dstPhone: parcel.receiver_phone,
-      dstProvinceName: mapProv(parcel.receiver_province),
-      dstCityName: parcel.receiver_district,
-      dstDistrictName: parcel.receiver_subdistrict || "",
-      dstDetailAddress: `${parcel.receiver_address || ""} ${parcel.receiver_subdistrict || ""} ${parcel.receiver_district || ""} ${parcel.receiver_province || ""}`.trim() || parcel.receiver_name,
-      dstPostalCode: parcel.receiver_postal,
+      dstProvinceName: mapProv(parcel.receiver_province || ""),
+      dstCityName: parcel.receiver_district || "",
+      dstPostalCode: String(parcel.receiver_postal),
+      dstDetailAddress: [parcel.receiver_address, parcel.receiver_subdistrict, parcel.receiver_district, parcel.receiver_province].filter(Boolean).join(" ") || parcel.receiver_name,
       articleCategory: "1",
       weight: String(Math.max(1, Math.round((parcel.weight || 1) * 1000))),
     };
+    // Optional: sender province/postal
+    if (parcel.sender_province) params.srcProvinceName = mapProv(parcel.sender_province);
+    if (parcel.sender_postal) params.srcPostalCode = String(parcel.sender_postal);
+    // Optional: receiver subdistrict
+    if (parcel.receiver_subdistrict) params.dstDistrictName = parcel.receiver_subdistrict;
+    // COD
     if (parcel.cod_enabled && parcel.cod_amount > 0) {
+      params.expressCategory = "1";
       params.codEnabled = "1";
       params.codAmount = String(Math.round(parcel.cod_amount * 100));
     }
-    // Remove empty optional fields + expressCategory "0"
-    const optional = ["srcProvinceName","srcCityName","srcDistrictName","srcDetailAddress","srcPostalCode","dstDistrictName"];
-    Object.keys(params).forEach(k => { if (optional.includes(k) && (!params[k] || params[k] === "")) delete params[k]; });
-    if (params.expressCategory === "0") delete params.expressCategory;
     console.log("Flash API params (before sign):", JSON.stringify(params, null, 2));
     params.sign = await this.sign(params);
 
