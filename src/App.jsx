@@ -56,17 +56,30 @@ const flashApi = {
       params.codEnabled = 1;
       params.codAmount = String(Math.round(parcel.cod_amount * 100));
     }
-    // Remove empty values
-    Object.keys(params).forEach(k => { if (params[k] === "" || params[k] === undefined) delete params[k]; });
+    Object.keys(params).forEach(k => { if (params[k] === "" || params[k] === undefined || params[k] === null) delete params[k]; });
     const sign = await this.sign(params);
     params.sign = sign;
 
-    const res = await fetch(`${FLASH_API_URL}/open/v3/orders`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams(params).toString(),
-    });
-    return res.json();
+    const body = new URLSearchParams(params).toString();
+    const urls = [
+      `${FLASH_API_URL}/open/v3/orders`,
+      `https://open-api.flashexpress.com/open/v3/orders`,
+    ];
+
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body,
+        });
+        return await res.json();
+      } catch (e) {
+        console.warn("Flash API failed:", url, e.message);
+        continue;
+      }
+    }
+    throw new Error("ไม่สามารถเชื่อมต่อ Flash API ได้ — ตรวจสอบ Cloudflare Worker");
   },
 };
 
@@ -962,7 +975,7 @@ export default function FlashBackend() {
       } else {
         alert(`Flash API Error:\n${result.message || JSON.stringify(result)}`);
       }
-    } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้: " + e.message); }
+    } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้:\n" + e.message + "\n\nลองตรวจสอบ:\n1. Cloudflare Worker ใส่โค้ดใหม่หรือยัง\n2. Worker URL ถูกต้องไหม\n3. เปิด Console (F12) ดู error"); }
     setFlashLoading(null);
   };
 
