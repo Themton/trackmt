@@ -1022,9 +1022,10 @@ export default function FlashBackend() {
   ], []);
 
   const loadParcels = useCallback(async () => {
-    if (isDemo) { setParcels(demoData); setLoading(false); return; }
+    setGlobalLoading({ msg: "กำลังโหลดข้อมูล..." });
+    if (isDemo) { setParcels(demoData); setLoading(false); setGlobalLoading(null); return; }
     setLoading(true);
-    try { const d = await sb.select("fx_parcels", { order: "created_at.desc" }); setParcels(d || []); } catch {} setLoading(false);
+    try { const d = await sb.select("fx_parcels", { order: "created_at.desc" }); setParcels(d || []); } catch {} setLoading(false); setGlobalLoading(null);
   }, [isDemo, demoData]);
 
   useEffect(() => { if (user) loadParcels(); }, [user, loadParcels]);
@@ -1053,12 +1054,14 @@ export default function FlashBackend() {
 
   // สร้างเลข Tracking Flash Express
   const [flashLoading, setFlashLoading] = useState(null);
+  const [globalLoading, setGlobalLoading] = useState(null); // { msg, progress }
   const createFlashOrder = async (p) => {
     if (p.flash_pno) { alert("พัสดุนี้มีเลข Tracking แล้ว: " + p.flash_pno); return; }
     if (!p.receiver_name || !p.receiver_phone) { alert(`❌ ${p.receiver_name}\nกรุณากรอกชื่อและเบอร์ผู้รับก่อน`); return; }
     if (!p.receiver_province && !p.receiver_postal) { alert(`❌ ${p.receiver_name}\nกรุณากรอกจังหวัดหรือรหัสไปรษณีย์ผู้รับ\n\nกด ✏️ แก้ไข → กรอกที่อยู่ให้ครบ`); return; }
     if (!confirm(`สร้างเลข Tracking Flash Express\nให้พัสดุ ${p.parcel_no}?\n\nผู้รับ: ${p.receiver_name}\nเบอร์: ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "—"}\nอำเภอ: ${p.receiver_district || "—"}`)) return;
     setFlashLoading(p.id);
+    setGlobalLoading({ msg: "กำลังสร้างเลข Tracking..." });
     try {
       const result = await flashApi.createOrder(p);
       console.log("Flash API response:", JSON.stringify(result));
@@ -1076,8 +1079,8 @@ export default function FlashBackend() {
       } else {
         alert(`❌ Flash API Error (code: ${result.code}):\n${result.message || ""}\n${result.data ? "\nรายละเอียด: " + JSON.stringify(result.data) : ""}\n\n📤 ผู้ส่ง: ${p.sender_name || "❌"} | ${p.sender_phone || "❌"}\nที่อยู่ส่ง: ${p.sender_address || "❌"} | ${p.sender_province || "❌"} | ปณ.${p.sender_postal || "❌"}\n\n📥 ผู้รับ: ${p.receiver_name} | ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "❌"} | อำเภอ: ${p.receiver_district || "❌"}\nตำบล: ${p.receiver_subdistrict || "❌"} | ปณ.${p.receiver_postal || "❌"}\nที่อยู่: ${p.receiver_address || "❌"}`);
       }
-    } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้:\n" + e.message + "\n\nลองตรวจสอบ:\n1. Cloudflare Worker ใส่โค้ดใหม่หรือยัง\n2. Worker URL ถูกต้องไหม\n3. เปิด Console (F12) ดู error"); }
-    setFlashLoading(null);
+    } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้:\n" + e.message); }
+    setFlashLoading(null); setGlobalLoading(null);
   };
 
   // Batch สร้างเลข Tracking
@@ -1089,6 +1092,8 @@ export default function FlashBackend() {
     setBatchProgress({ total: targets.length, done: 0, success: 0, errors: [] });
     let success = 0; const errors = [];
     for (let i = 0; i < targets.length; i++) {
+      const pct = Math.round(((i + 1) / targets.length) * 100);
+      setGlobalLoading({ msg: `กำลังสร้างเลข Tracking ${i + 1}/${targets.length}`, progress: pct });
       const p = targets[i];
       try {
         const result = await flashApi.createOrder(p);
@@ -1096,11 +1101,12 @@ export default function FlashBackend() {
           const updates = { flash_pno: result.data.pno || "", flash_sort_code: result.data.sortCode || result.data.dstStoreName || "", flash_api_response: result.data, status: "created" };
           if (!isDemo) await sb.update("fx_parcels", p.id, updates);
           success++;
-        } else { errors.push(`${p.parcel_no}: ${result.message || "error"}`); }
-      } catch (e) { errors.push(`${p.parcel_no}: ${e.message}`); }
+        } else { errors.push(`${p.receiver_name}: ${result.message || "error"}`); }
+      } catch (e) { errors.push(`${p.receiver_name}: ${e.message}`); }
       setBatchProgress({ total: targets.length, done: i + 1, success, errors: [...errors] });
       if (i % 3 === 2) await new Promise(r => setTimeout(r, 300));
     }
+    setGlobalLoading(null);
     alert(`สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ${errors.length ? "\n\nErrors:\n" + errors.join("\n") : ""}`);
     setBatchProgress(null);
     setSelectedIds(new Set());
@@ -1115,9 +1121,12 @@ export default function FlashBackend() {
     if (!targets.length) return;
     if (!confirm(`ลบ ${targets.length} รายการ?\n\n${targets.map(p => p.receiver_name + " " + p.receiver_phone).join("\n")}`)) return;
     let success = 0;
-    for (const p of targets) {
+    for (let i = 0; i < targets.length; i++) {
+      setGlobalLoading({ msg: `กำลังลบ ${i + 1}/${targets.length}`, progress: Math.round(((i + 1) / targets.length) * 100) });
+      const p = targets[i];
       try { if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); } else { await sb.delete("fx_parcels", p.id); } success++; } catch {}
     }
+    setGlobalLoading(null);
     alert(`ลบสำเร็จ ${success}/${targets.length} รายการ`);
     setSelectedIds(new Set());
     loadParcels();
@@ -1271,6 +1280,27 @@ export default function FlashBackend() {
           {activePage === "users" && <UsersPage />}
         </div>
       </div>
+
+      {/* GLOBAL LOADING OVERLAY */}
+      {globalLoading && (
+        <div style={{ position: "fixed", top: 0, left: 200, right: 0, zIndex: 9000, pointerEvents: globalLoading.progress ? "all" : "none" }}>
+          <div style={{ height: 3, background: "#e2e8f0" }}>
+            <div style={{ height: "100%", background: "linear-gradient(90deg,#dc2626,#f59e0b)", width: globalLoading.progress ? `${globalLoading.progress}%` : "100%", transition: "width .3s", animation: globalLoading.progress ? "none" : "loading 1.5s infinite" }} />
+          </div>
+          {globalLoading.progress && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.3)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9001 }}>
+              <div style={{ background: "#fff", borderRadius: 16, padding: "24px 40px", textAlign: "center", boxShadow: "0 10px 40px rgba(0,0,0,.2)" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>{globalLoading.msg}</div>
+                <div style={{ width: 200, height: 8, background: "#e2e8f0", borderRadius: 4 }}>
+                  <div style={{ width: `${globalLoading.progress}%`, height: "100%", background: "linear-gradient(90deg,#dc2626,#f59e0b)", borderRadius: 4, transition: ".3s" }} />
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: "#dc2626", marginTop: 8 }}>{globalLoading.progress}%</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      <style>{`@keyframes loading { 0%{width:0%} 50%{width:70%} 100%{width:100%} }`}</style>
 
       {/* DETAIL MODAL */}
       {viewParcel && <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setViewParcel(null)}><div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 520, width: "95%", maxHeight: "85vh", overflowY: "auto" }}>
