@@ -62,9 +62,11 @@ const flashApi = {
       articleCategory: "1",
       weight: String(Math.max(1, Math.round((parcel.weight || 1) * 1000))),
     };
-    // Optional: sender province/postal
+    // Optional: sender province/postal — ถ้าไม่มี postal ดึงจากที่อยู่
     if (parcel.sender_province) params.srcProvinceName = mapProv(parcel.sender_province);
-    if (parcel.sender_postal) params.srcPostalCode = String(parcel.sender_postal);
+    let senderPostal = parcel.sender_postal || "";
+    if (!senderPostal) { const m = (parcel.sender_address || "").match(/\b(\d{5})\b/); if (m) senderPostal = m[1]; }
+    if (senderPostal) params.srcPostalCode = String(senderPostal);
     // Optional: receiver subdistrict
     if (parcel.receiver_subdistrict) params.dstDistrictName = parcel.receiver_subdistrict;
     // COD
