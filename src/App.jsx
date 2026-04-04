@@ -70,7 +70,7 @@ const flashApi = {
       dstPostalCode: String(parcel.receiver_postal),
       dstDetailAddress: [parcel.receiver_address, parcel.receiver_subdistrict, parcel.receiver_district, parcel.receiver_province].filter(Boolean).join(" ") || parcel.receiver_name,
       articleCategory: "1",
-      expressCategory: parcel.cod_enabled ? "1" : "0",
+      expressCategory: "1",
       codEnabled: parcel.cod_enabled ? "1" : "0",
       weight: String(Math.max(1, Math.round((parcel.weight || 1) * 1000))),
     };
