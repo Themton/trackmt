@@ -110,17 +110,25 @@ const flashApi = {
     };
     params.sign = await this.sign(params, acc.key);
     const body = new URLSearchParams(params).toString();
+    console.log("Flash cancel params:", JSON.stringify(params, null, 2));
     const urls = [
+      `${FLASH_API_URL}/open/v1/orders/${pno}/cancel`,
       `${FLASH_API_URL}/open/v1/orders/cancel`,
+      `${FLASH_DIRECT_URL}/open/v1/orders/${pno}/cancel`,
       `${FLASH_DIRECT_URL}/open/v1/orders/cancel`,
     ];
     for (const url of urls) {
       try {
         const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
-        return await res.json();
+        const text = await res.text();
+        console.log("Flash cancel [" + url + "] response:", text);
+        try { 
+          const json = JSON.parse(text);
+          if (json.code === 1 || json.message) return json;
+        } catch {}
       } catch (e) { console.warn("Flash cancel:", url, e.message); continue; }
     }
-    throw new Error("ไม่สามารถเชื่อมต่อ Flash API");
+    throw new Error("ไม่สามารถเชื่อมต่อ Flash API cancel");
   },
 };
 
@@ -1092,7 +1100,14 @@ export default function FlashBackend() {
         setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
         showToast(`ยกเลิกเลขพัสดุ ${p.flash_pno} สำเร็จ`);
       } else {
-        alert(`❌ ยกเลิกไม่สำเร็จ\n\nFlash API: ${result.message || JSON.stringify(result.data || "")}`);
+        alert(`❌ ยกเลิกไม่สำเร็จ\n\nCode: ${result.code}\nMessage: ${result.message || "ไม่มีข้อความ"}\n\nรายละเอียด: ${JSON.stringify(result.data || result, null, 2)}\n\n⚠️ พัสดุอาจถูกรับแล้ว หรือยกเลิกไม่ได้`);
+        // ถามว่าต้องการยกเลิกในระบบอย่างเดียวไหม
+        if (confirm("ต้องการยกเลิกเฉพาะในระบบหลังบ้านไหม?\n(ไม่ยกเลิกฝั่ง Flash Express)")) {
+          const updates = { status: "cancelled", flash_cancelled_at: new Date().toISOString() };
+          if (!isDemo) await sb.update("fx_parcels", p.id, updates);
+          setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
+          showToast(`ยกเลิกในระบบแล้ว (ไม่ได้ยกเลิกฝั่ง Flash)`);
+        }
       }
     } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้:\n" + e.message); }
     setFlashLoading(null);
