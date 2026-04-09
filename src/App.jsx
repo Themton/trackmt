@@ -101,6 +101,27 @@ const flashApi = {
     }
     throw new Error("ไม่สามารถเชื่อมต่อ Flash API — ตรวจสอบ Cloudflare Worker");
   },
+  async cancelOrder(pno, account) {
+    const acc = account || FLASH_ACCOUNTS[0];
+    const params = {
+      mchId: acc.mchId,
+      nonceStr: String(Date.now()) + Math.random().toString(36).substring(2, 8),
+      pno: pno,
+    };
+    params.sign = await this.sign(params, acc.key);
+    const body = new URLSearchParams(params).toString();
+    const urls = [
+      `${FLASH_API_URL}/open/v1/orders/cancel`,
+      `${FLASH_DIRECT_URL}/open/v1/orders/cancel`,
+    ];
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+        return await res.json();
+      } catch (e) { console.warn("Flash cancel:", url, e.message); continue; }
+    }
+    throw new Error("ไม่สามารถเชื่อมต่อ Flash API");
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -996,6 +1017,7 @@ export default function FlashBackend() {
     { key: "ALL", label: "ทั้งหมด", icon: "📋", color: "#475569" },
     { key: "draft", label: "เตรียมส่ง", icon: "📝", color: "#f59e0b" },
     { key: "created", label: "สร้างเลขพัสดุแล้ว", icon: "✅", color: "#059669" },
+    { key: "cancelled", label: "ยกเลิก", icon: "❌", color: "#dc2626" },
   ];
 
   const filtered = useMemo(() => {
@@ -1009,7 +1031,7 @@ export default function FlashBackend() {
   const paged = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const statsData = useMemo(() => { const list = selectedShopFilter ? parcels.filter(p => p.shop_id === selectedShopFilter) : parcels; return list; }, [parcels, selectedShopFilter]);
-  const stats = useMemo(() => ({ total: statsData.length, draft: statsData.filter(p => p.status === "draft").length, created: statsData.filter(p => p.status === "created").length, codTotal: statsData.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [statsData]);
+  const stats = useMemo(() => ({ total: statsData.length, draft: statsData.filter(p => p.status === "draft").length, created: statsData.filter(p => p.status === "created").length, cancelled: statsData.filter(p => p.status === "cancelled").length, codTotal: statsData.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [statsData]);
 
   const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); setParcels(prev => prev.filter(x => x.id !== p.id)); showToast("ลบสำเร็จ"); } catch (e) { alert(e.message); } };
   const markPrinted = async (p) => {
@@ -1051,6 +1073,26 @@ export default function FlashBackend() {
         showToast(`สร้างเลข Tracking สำเร็จ! ${updates.flash_pno}`);
       } else {
         alert(`❌ Flash API Error (code: ${result.code}):\n${result.message || ""}\n${result.data ? "\nรายละเอียด: " + JSON.stringify(result.data) : ""}\n\n📤 ผู้ส่ง: ${p.sender_name || "❌"} | ${p.sender_phone || "❌"}\nที่อยู่ส่ง: ${p.sender_address || "❌"} | ${p.sender_province || "❌"} | ปณ.${p.sender_postal || "❌"}\n\n📥 ผู้รับ: ${p.receiver_name} | ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "❌"} | อำเภอ: ${p.receiver_district || "❌"}\nตำบล: ${p.receiver_subdistrict || "❌"} | ปณ.${p.receiver_postal || "❌"}\nที่อยู่: ${p.receiver_address || "❌"}`);
+      }
+    } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้:\n" + e.message); }
+    setFlashLoading(null);
+  };
+
+  const cancelFlashOrder = async (p) => {
+    if (!p.flash_pno) { alert("พัสดุนี้ยังไม่มีเลข Tracking"); return; }
+    if (!confirm(`ยกเลิกเลขพัสดุ?\n\n${p.flash_pno}\nผู้รับ: ${p.receiver_name}\n\n⚠️ จะยกเลิกจากระบบ Flash Express ด้วย`)) return;
+    setFlashLoading(p.id);
+    try {
+      const acc = getFlashAccount(p);
+      const result = await flashApi.cancelOrder(p.flash_pno, acc);
+      console.log("Flash cancel response:", JSON.stringify(result));
+      if (result.code === 1) {
+        const updates = { status: "cancelled", flash_cancelled_at: new Date().toISOString() };
+        if (!isDemo) await sb.update("fx_parcels", p.id, updates);
+        setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
+        showToast(`ยกเลิกเลขพัสดุ ${p.flash_pno} สำเร็จ`);
+      } else {
+        alert(`❌ ยกเลิกไม่สำเร็จ\n\nFlash API: ${result.message || JSON.stringify(result.data || "")}`);
       }
     } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้:\n" + e.message); }
     setFlashLoading(null);
@@ -1429,8 +1471,8 @@ export default function FlashBackend() {
               {STATUS_TABS.map(s => { const cnt = s.key === "ALL" ? statsData.length : statsData.filter(p => p.status === s.key).length; const active = statusFilter === s.key; return <button key={s.key} onClick={() => { setStatusFilter(s.key); setPage(0); }} style={{ padding: "12px 18px", border: "none", borderBottom: active ? `3px solid ${s.color}` : "3px solid transparent", background: "transparent", color: active ? s.color : "#64748b", fontSize: 13, fontWeight: active ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}><span>{s.icon}</span>{s.label}{cnt > 0 && <span style={{ background: active ? s.color : "#e2e8f0", color: active ? "#fff" : "#64748b", padding: "1px 7px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{cnt}</span>}</button>; })}
             </div>
             {/* STATS */}
-            <div style={{ display: "grid", gridTemplateColumns: `repeat(${perm.viewCOD ? 4 : 3}, 1fr)`, gap: 12, padding: "12px 24px" }}>
-              {[{ l: "ทั้งหมด", v: stats.total, c: "#6366f1", i: "📋" }, { l: "เตรียมส่ง", v: stats.draft, c: "#f59e0b", i: "📝" }, { l: "สร้างเลขแล้ว", v: stats.created, c: "#059669", i: "✅" }, ...(perm.viewCOD ? [{ l: "COD รวม", v: `฿${stats.codTotal.toLocaleString()}`, c: "#7c3aed", i: "💰" }] : [])].map((s, i) => <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: "1px solid #e2e8f0" }}><div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>{s.i} {s.l}</div><div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div></div>)}
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${perm.viewCOD ? 5 : 4}, 1fr)`, gap: 12, padding: "12px 24px" }}>
+              {[{ l: "ทั้งหมด", v: stats.total, c: "#6366f1", i: "📋" }, { l: "เตรียมส่ง", v: stats.draft, c: "#f59e0b", i: "📝" }, { l: "สร้างเลขแล้ว", v: stats.created, c: "#059669", i: "✅" }, { l: "ยกเลิก", v: stats.cancelled, c: "#dc2626", i: "❌" }, ...(perm.viewCOD ? [{ l: "COD รวม", v: `฿${stats.codTotal.toLocaleString()}`, c: "#7c3aed", i: "💰" }] : [])].map((s, i) => <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: "1px solid #e2e8f0" }}><div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>{s.i} {s.l}</div><div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div></div>)}
             </div>
 
             {/* TABLE */}
@@ -1463,11 +1505,13 @@ export default function FlashBackend() {
                           <td style={{ padding: "8px 10px", fontSize: 12, whiteSpace: "nowrap", color: "#64748b" }}>{d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} น.</td>
                           <td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => setViewParcel(p)}>{p.receiver_name}</td>
                           <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
+                          <td style={{ padding: "8px 10px" }}><span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: p.status === "created" ? "#ecfdf5" : p.status === "cancelled" ? "#fef2f2" : "#fef3c7", color: p.status === "created" ? "#059669" : p.status === "cancelled" ? "#dc2626" : "#f59e0b" }}>{p.status === "created" ? "✅ สร้างเลขแล้ว" : p.status === "cancelled" ? "❌ ยกเลิก" : "📝 เตรียมส่ง"}</span></td>
                           <td style={{ padding: "8px 10px" }}>{p.flash_pno ? <span style={{ color: "#0ea5e9", fontWeight: 600, fontSize: 12 }}>{p.flash_pno} {p.flash_sort_code ? "📋" : ""}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}</td>
                           {perm.viewCOD && <td style={{ padding: "8px 10px", fontWeight: 700, fontSize: 13 }}>{p.cod_enabled ? <span style={{ color: "#000" }}>{Number(p.cod_amount || 0).toLocaleString()}</span> : ""}</td>}
                           <td style={{ padding: "8px 10px", fontSize: 11, fontWeight: 600 }}>{p.sender_name || "—"}</td>
                           <td style={{ padding: "8px 6px" }}><div style={{ display: "flex", gap: 2 }}>
                             {perm.status && !p.flash_pno && <button title="สร้างเลข" onClick={() => createFlashOrder(p)} disabled={flashLoading === p.id} style={{ width: 26, height: 26, border: "1px solid #fbbf24", borderRadius: 4, background: flashLoading === p.id ? "#fef3c7" : "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{flashLoading === p.id ? "⏳" : "⚡"}</button>}
+                            {perm.status && p.flash_pno && p.status !== "cancelled" && <button title="ยกเลิกเลขพัสดุ" onClick={() => cancelFlashOrder(p)} disabled={flashLoading === p.id} style={{ width: 26, height: 26, border: "1px solid #dc2626", borderRadius: 4, background: flashLoading === p.id ? "#fef2f2" : "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{flashLoading === p.id ? "⏳" : "❌"}</button>}
                             {perm.edit && <button title="แก้ไข" onClick={() => { setEditParcel(p); setShowForm(true); }} style={{ width: 26, height: 26, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</button>}
                             {perm.delete && <button title="ลบ" onClick={() => handleDelete(p)} style={{ width: 26, height: 26, border: "1px solid #fca5a5", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑️</button>}
                             <button title="ดูรายละเอียด" onClick={() => setViewParcel(p)} style={{ width: 26, height: 26, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>👁️</button>
