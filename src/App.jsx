@@ -159,20 +159,6 @@ function generateParcelNo() {
   return `FX-${d}-${String(Math.floor(Math.random() * 9999) + 1).padStart(4, "0")}`;
 }
 
-const STATUSES = [
-  { key: "draft", label: "ร่าง", icon: "📝", color: "#94a3b8", bg: "#f1f5f9" },
-  { key: "created", label: "สร้างเลขแล้ว", icon: "📋", color: "#6366f1", bg: "#eef2ff" },
-  { key: "waiting_pickup", label: "รอเข้ารับ", icon: "⏳", color: "#8b5cf6", bg: "#f5f3ff" },
-  { key: "picked_up", label: "รับพัสดุแล้ว", icon: "📥", color: "#0284c7", bg: "#e0f2fe" },
-  { key: "in_transit", label: "กำลังขนส่ง", icon: "🚛", color: "#d97706", bg: "#fef3c7" },
-  { key: "out_for_delivery", label: "กำลังนำจ่าย", icon: "🚚", color: "#ea580c", bg: "#fff7ed" },
-  { key: "delivered", label: "จัดส่งสำเร็จ", icon: "✅", color: "#059669", bg: "#ecfdf5" },
-  { key: "returned", label: "ตีกลับ", icon: "↩️", color: "#dc2626", bg: "#fef2f2" },
-  { key: "cancelled", label: "ยกเลิก", icon: "❌", color: "#6b7280", bg: "#f9fafb" },
-  { key: "failed", label: "จัดส่งไม่สำเร็จ", icon: "⚠️", color: "#dc2626", bg: "#fef2f2" },
-];
-const getStatus = (k) => STATUSES.find((s) => s.key === k) || STATUSES[0];
-
 const ROLES = {
   admin: { label: "แอดมิน", icon: "👑", color: "#dc2626", bg: "#fef2f2" },
   shipping: { label: "พนักงานจัดส่ง", icon: "🚚", color: "#0284c7", bg: "#e0f2fe" },
@@ -957,35 +943,6 @@ function ShopManagement({ onClose, onUpdate, isDemo, inline }) {
 // ═══════════════════════════════════════════════════════════════
 // STATUS MODAL
 // ═══════════════════════════════════════════════════════════════
-function StatusModal({ parcel, onSave, onClose }) {
-  const [selected, setSelected] = useState(parcel.status);
-  const [flashPno, setFlashPno] = useState(parcel.flash_pno || "");
-  const [sortCode, setSortCode] = useState(parcel.flash_sort_code || "");
-  const [saving, setSaving] = useState(false);
-  const handleSave = async () => { setSaving(true); try { const u = { status: selected }; if (flashPno) u.flash_pno = flashPno; if (sortCode) u.flash_sort_code = sortCode; await sb.update("fx_parcels", parcel.id, u); onSave(); } catch (e) { alert(e.message); } setSaving(false); };
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 480, width: "95%" }}>
-        <h3 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 800 }}>🔄 อัพเดตสถานะ</h3>
-        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>{parcel.receiver_name} — {parcel.receiver_phone}</div>
-        <div style={{ marginBottom: 16, padding: 14, background: "#fef2f2", borderRadius: 12 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: "#dc2626", display: "block", marginBottom: 6 }}>⚡ Tracking</label>
-          <input value={flashPno} onChange={e => setFlashPno(e.target.value)} placeholder="TH..." style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #fca5a5", borderRadius: 8, fontSize: 14, fontFamily: "monospace", outline: "none", marginBottom: 8 }} />
-          <label style={{ fontSize: 12, fontWeight: 600, color: "#dc2626", display: "block" }}>Sort Code</label>
-          <input value={sortCode} onChange={e => setSortCode(e.target.value)} placeholder="BKK-01-A" style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #fca5a5", borderRadius: 8, fontSize: 14, fontFamily: "monospace", outline: "none" }} />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
-          {STATUSES.map(s => <button key={s.key} onClick={() => setSelected(s.key)} style={{ padding: "10px 12px", border: selected === s.key ? `2px solid ${s.color}` : "2px solid #e2e8f0", borderRadius: 10, background: selected === s.key ? s.bg : "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 18 }}>{s.icon}</span><span style={{ fontSize: 13, fontWeight: selected === s.key ? 700 : 500, color: selected === s.key ? s.color : "#475569" }}>{s.label}</span></button>)}
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={handleSave} disabled={saving} style={{ flex: 1, padding: 13, background: saving ? "#94a3b8" : "#dc2626", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, cursor: "pointer" }}>{saving ? "..." : "✅ บันทึก"}</button>
-          <button onClick={onClose} style={{ padding: "13px 24px", background: "#f1f5f9", border: "none", borderRadius: 12, fontWeight: 600, cursor: "pointer" }}>ยกเลิก</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════
@@ -998,10 +955,8 @@ export default function FlashBackend() {
   const [parcels, setParcels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
   const [showForm, setShowForm] = useState(false);
   const [editParcel, setEditParcel] = useState(null);
-  const [statusParcel, setStatusParcel] = useState(null);
   const [printParcel, setPrintParcel] = useState(null);
   const [viewParcel, setViewParcel] = useState(null);
   const [shops, setShops] = useState([]);
@@ -1038,15 +993,14 @@ export default function FlashBackend() {
   const filtered = useMemo(() => {
     let list = parcels;
     if (selectedShopFilter) list = list.filter(p => p.shop_id === selectedShopFilter);
-    if (statusFilter !== "ALL") list = list.filter(p => p.status === statusFilter);
     if (search) { const q = search.toLowerCase(); list = list.filter(p => [p.parcel_no, p.receiver_name, p.receiver_phone, p.flash_pno, p.receiver_province, p.created_by_name].some(v => (v || "").toLowerCase().includes(q))); }
     return list;
-  }, [parcels, statusFilter, search, selectedShopFilter]);
+  }, [parcels, search, selectedShopFilter]);
 
   const paged = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const statsData = useMemo(() => { const list = selectedShopFilter ? parcels.filter(p => p.shop_id === selectedShopFilter) : parcels; return list; }, [parcels, selectedShopFilter]);
-  const stats = useMemo(() => ({ total: statsData.length, draft: statsData.filter(p => p.status === "draft").length, inTransit: statsData.filter(p => ["in_transit", "out_for_delivery", "picked_up", "waiting_pickup"].includes(p.status)).length, delivered: statsData.filter(p => p.status === "delivered").length, problems: statsData.filter(p => ["returned", "failed", "cancelled"].includes(p.status)).length, codTotal: statsData.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [statsData]);
+  const stats = useMemo(() => ({ total: statsData.length, withTracking: statsData.filter(p => p.flash_pno).length, noTracking: statsData.filter(p => !p.flash_pno).length, codTotal: statsData.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [statsData]);
 
   const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); loadParcels(); } catch (e) { alert(e.message); } };
   const markPrinted = async (p) => { if (isDemo) { setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: true } : x)); return; } try { await sb.update("fx_parcels", p.id, { label_printed: true, label_printed_at: new Date().toISOString() }); loadParcels(); } catch {} };
@@ -1162,7 +1116,6 @@ export default function FlashBackend() {
   // ═══ EXPORT PAGE ═══
   const ExportPage = () => {
     const [exportShop, setExportShop] = useState("");
-    const [exportStatus, setExportStatus] = useState("ALL");
     const [exportFrom, setExportFrom] = useState("");
     const [exportTo, setExportTo] = useState("");
     const [exporting, setExporting] = useState(false);
@@ -1170,7 +1123,6 @@ export default function FlashBackend() {
     const getExportData = () => {
       let list = parcels;
       if (exportShop) list = list.filter(p => p.shop_id === exportShop);
-      if (exportStatus !== "ALL") list = list.filter(p => p.status === exportStatus);
       if (exportFrom) list = list.filter(p => new Date(p.created_at) >= new Date(exportFrom));
       if (exportTo) list = list.filter(p => new Date(p.created_at) <= new Date(exportTo + "T23:59:59"));
       return list;
@@ -1181,12 +1133,11 @@ export default function FlashBackend() {
       if (!data.length) { alert("ไม่มีข้อมูลที่จะ Export"); return; }
       setExporting(true);
 
-      const headers = ["ชื่อผู้รับ","เบอร์ผู้รับ","ที่อยู่","ตำบล","อำเภอ","จังหวัด","รหัสไปรษณีย์","Tracking","Sort Code","สถานะ","COD","ยอด COD","หมายเหตุ","ชื่อผู้ส่ง","เบอร์ผู้ส่ง","วันที่สร้าง"];
+      const headers = ["ชื่อผู้รับ","เบอร์ผู้รับ","ที่อยู่","ตำบล","อำเภอ","จังหวัด","รหัสไปรษณีย์","Tracking","Sort Code","COD","ยอด COD","หมายเหตุ","ชื่อผู้ส่ง","เบอร์ผู้ส่ง","วันที่สร้าง"];
       const rows = data.map(p => [
         p.receiver_name, p.receiver_phone, p.receiver_address,
         p.receiver_subdistrict, p.receiver_district, p.receiver_province, p.receiver_postal,
         p.flash_pno || "", p.flash_sort_code || "",
-        getStatus(p.status).label,
         p.cod_enabled ? "ใช่" : "ไม่", p.cod_amount || 0,
         p.remark || "",
         p.sender_name, p.sender_phone,
@@ -1233,13 +1184,6 @@ export default function FlashBackend() {
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>สถานะ</label>
-                <select value={exportStatus} onChange={e => setExportStatus(e.target.value)} style={{ ...I, minWidth: 120 }}>
-                  <option value="ALL">ทั้งหมด</option>
-                  {STATUSES.map(s => <option key={s.key} value={s.key}>{s.icon} {s.label}</option>)}
-                </select>
-              </div>
-              <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>ตั้งแต่วันที่</label>
                 <input type="date" value={exportFrom} onChange={e => setExportFrom(e.target.value)} style={I} />
               </div>
@@ -1257,17 +1201,15 @@ export default function FlashBackend() {
               <div style={{ overflowX: "auto", maxHeight: 300 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                   <thead><tr style={{ background: "#f8fafc" }}>
-                    {["ชื่อ","เบอร์","อำเภอ","จังหวัด","Tracking","สถานะ","COD","หมายเหตุ"].map((h,i) => <th key={i} style={{ padding: "6px 8px", textAlign: "left", fontWeight: 700, color: "#64748b", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>)}
+                    {["ชื่อ","เบอร์","อำเภอ","จังหวัด","Tracking","COD","หมายเหตุ"].map((h,i) => <th key={i} style={{ padding: "6px 8px", textAlign: "left", fontWeight: 700, color: "#64748b", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>)}
                   </tr></thead>
                   <tbody>{previewData.slice(0, 20).map((p, i) => {
-                    const st = getStatus(p.status);
                     return <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
                       <td style={{ padding: "5px 8px", fontWeight: 600 }}>{p.receiver_name}</td>
                       <td style={{ padding: "5px 8px", fontFamily: "monospace" }}>{p.receiver_phone}</td>
                       <td style={{ padding: "5px 8px" }}>{p.receiver_district}</td>
                       <td style={{ padding: "5px 8px" }}>{p.receiver_province}</td>
                       <td style={{ padding: "5px 8px", fontFamily: "monospace", fontSize: 10 }}>{p.flash_pno || "—"}</td>
-                      <td style={{ padding: "5px 8px" }}><span style={{ fontSize: 10, color: st.color }}>{st.icon} {st.label}</span></td>
                       <td style={{ padding: "5px 8px", fontWeight: 600, color: "#d97706" }}>{p.cod_enabled ? `฿${p.cod_amount}` : "—"}</td>
                       <td style={{ padding: "5px 8px", fontSize: 10, color: "#64748b", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.remark || "—"}</td>
                     </tr>;
@@ -1357,14 +1299,7 @@ export default function FlashBackend() {
           {activePage === "parcels" && (<>
             {/* STATS */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, padding: "16px 24px" }}>
-              {[{ l: "ทั้งหมด", v: stats.total, c: "#6366f1", i: "📦" }, { l: "ร่าง", v: stats.draft, c: "#94a3b8", i: "📝" }, { l: "กำลังส่ง", v: stats.inTransit, c: "#f59e0b", i: "🚛" }, { l: "สำเร็จ", v: stats.delivered, c: "#059669", i: "✅" }, { l: "มีปัญหา", v: stats.problems, c: "#dc2626", i: "⚠️" }, ...(perm.viewCOD ? [{ l: "COD รวม", v: `฿${stats.codTotal.toLocaleString()}`, c: "#7c3aed", i: "💰" }] : [])].map((s, i) => <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: "1px solid #e2e8f0" }}><div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>{s.i} {s.l}</div><div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div></div>)}
-            </div>
-
-            {/* STATUS TABS */}
-            <div style={{ padding: "0 24px 12px" }}>
-              <div style={{ display: "flex", gap: 0, overflowX: "auto", background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0" }}>
-                {[{ key: "ALL", label: "ทั้งหมด", icon: "📋", color: "#475569" }, ...STATUSES].map(s => { const cnt = s.key === "ALL" ? statsData.length : statsData.filter(p => p.status === s.key).length; const active = statusFilter === s.key; return <button key={s.key} onClick={() => { setStatusFilter(s.key); setPage(0); }} style={{ padding: "9px 12px", border: "none", borderBottom: active ? `3px solid ${s.color}` : "3px solid transparent", background: "transparent", color: active ? s.color : cnt ? "#475569" : "#cbd5e1", fontSize: 11, fontWeight: active ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", minWidth: 68 }}>{s.icon} {s.label}{cnt > 0 && <span style={{ marginLeft: 3, background: active ? s.color : "#e2e8f0", color: active ? "#fff" : "#64748b", padding: "1px 5px", borderRadius: 8, fontSize: 10, fontWeight: 700 }}>{cnt}</span>}</button>; })}
-              </div>
+              {[{ l: "ทั้งหมด", v: stats.total, c: "#6366f1", i: "📦" }, { l: "มี Tracking", v: stats.withTracking, c: "#059669", i: "✅" }, { l: "ยังไม่มี Tracking", v: stats.noTracking, c: "#f59e0b", i: "⏳" }, ...(perm.viewCOD ? [{ l: "COD รวม", v: `฿${stats.codTotal.toLocaleString()}`, c: "#7c3aed", i: "💰" }] : [])].map((s, i) => <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: "1px solid #e2e8f0" }}><div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>{s.i} {s.l}</div><div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div></div>)}
             </div>
 
             {/* TABLE */}
@@ -1386,9 +1321,9 @@ export default function FlashBackend() {
                       <thead><tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
                         {perm.status && <th style={{ padding: "10px 8px", width: 36 }}><input type="checkbox" checked={paged.length > 0 && paged.every(p => selectedIds.has(p.id))} onChange={toggleSelectAll} style={{ cursor: "pointer" }} /></th>}
                         <th style={{ padding: "10px 8px", width: 30, color: "#64748b", fontSize: 11 }}>🖨️</th>
-                        {["วันที่", "เวลา", "ลูกค้า", "เบอร์โทรศัพท์", "สถานะ", "หมายเลขการติดตาม", ...(perm.viewCOD ? ["COD"] : []), "ร้านค้า", "การปฏิบัติ"].map((h, i) => <th key={i} style={{ padding: "10px 10px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>)}
+                        {["วันที่", "เวลา", "ลูกค้า", "เบอร์โทรศัพท์", "หมายเลขการติดตาม", ...(perm.viewCOD ? ["COD"] : []), "ร้านค้า", "การปฏิบัติ"].map((h, i) => <th key={i} style={{ padding: "10px 10px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>)}
                       </tr></thead>
-                      <tbody>{paged.map((p, i) => { const st = getStatus(p.status); const d = new Date(p.created_at); return (
+                      <tbody>{paged.map((p, i) => { const d = new Date(p.created_at); return (
                         <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedIds.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
                           {perm.status && <td style={{ padding: "8px", textAlign: "center" }}><input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} style={{ cursor: "pointer" }} /></td>}
                           <td style={{ padding: "8px", textAlign: "center" }}>{p.flash_pno ? <span style={{ cursor: "pointer", fontSize: 14 }} onClick={() => { setPrintParcel(p); if (!p.label_printed) markPrinted(p); }}>🖨️</span> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
@@ -1396,7 +1331,6 @@ export default function FlashBackend() {
                           <td style={{ padding: "8px 10px", fontSize: 12, whiteSpace: "nowrap", color: "#64748b" }}>{d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} น.</td>
                           <td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => setViewParcel(p)}>{p.receiver_name}</td>
                           <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
-                          <td style={{ padding: "8px 10px" }}><span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: st.bg, color: st.color }}>{st.label}</span></td>
                           <td style={{ padding: "8px 10px" }}>{p.flash_pno ? <span style={{ color: "#0ea5e9", fontWeight: 600, fontSize: 12 }}>{p.flash_pno} {p.flash_sort_code ? "📋" : ""}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}</td>
                           {perm.viewCOD && <td style={{ padding: "8px 10px", fontWeight: 700, fontSize: 13 }}>{p.cod_enabled ? <span style={{ color: "#000" }}>{Number(p.cod_amount || 0).toLocaleString()}</span> : ""}</td>}
                           <td style={{ padding: "8px 10px", fontSize: 11, fontWeight: 600 }}>{p.sender_name || "—"}</td>
@@ -1449,17 +1383,15 @@ export default function FlashBackend() {
       {/* DETAIL MODAL */}
       {viewParcel && <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setViewParcel(null)}><div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 520, width: "95%", maxHeight: "85vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>📦 รายละเอียด</h3><button onClick={() => setViewParcel(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>✕</button></div>
-        {[["Tracking", viewParcel.flash_pno || "—"], ["Sort Code", viewParcel.flash_sort_code || "—"], ["สถานะ", `${getStatus(viewParcel.status).icon} ${getStatus(viewParcel.status).label}`], ["── ผู้ส่ง ──", ""], ["ชื่อ", viewParcel.sender_name], ["เบอร์", viewParcel.sender_phone], ["── ผู้รับ ──", ""], ["ชื่อ", viewParcel.receiver_name], ["เบอร์", viewParcel.receiver_phone], ["ที่อยู่", `${viewParcel.receiver_address || ""} ${viewParcel.receiver_subdistrict || ""} ${viewParcel.receiver_district || ""} ${viewParcel.receiver_province || ""} ${viewParcel.receiver_postal || ""}`], ["── พัสดุ ──", ""], ["น้ำหนัก", `${viewParcel.weight || 1} kg`], ["สินค้า", viewParcel.item_desc || "—"], ...(perm.viewCOD ? [["COD", viewParcel.cod_enabled ? `฿${Number(viewParcel.cod_amount || 0).toLocaleString()}` : "ไม่มี"]] : []), ["ผู้สร้าง", viewParcel.created_by_name || "—"], ["สร้างเมื่อ", new Date(viewParcel.created_at).toLocaleString("th-TH")]].map(([l, v], i) => v === "" ? <div key={i} style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", padding: "10px 0 4px", borderBottom: "1px solid #f1f5f9" }}>{l}</div> : <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #f8fafc" }}><span style={{ fontSize: 13, color: "#64748b" }}>{l}</span><span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", textAlign: "right", maxWidth: "60%", wordBreak: "break-word" }}>{v}</span></div>)}
+        {[["Tracking", viewParcel.flash_pno || "—"], ["Sort Code", viewParcel.flash_sort_code || "—"], ["── ผู้ส่ง ──", ""], ["ชื่อ", viewParcel.sender_name], ["เบอร์", viewParcel.sender_phone], ["── ผู้รับ ──", ""], ["ชื่อ", viewParcel.receiver_name], ["เบอร์", viewParcel.receiver_phone], ["ที่อยู่", `${viewParcel.receiver_address || ""} ${viewParcel.receiver_subdistrict || ""} ${viewParcel.receiver_district || ""} ${viewParcel.receiver_province || ""} ${viewParcel.receiver_postal || ""}`], ["── พัสดุ ──", ""], ["น้ำหนัก", `${viewParcel.weight || 1} kg`], ["สินค้า", viewParcel.item_desc || "—"], ...(perm.viewCOD ? [["COD", viewParcel.cod_enabled ? `฿${Number(viewParcel.cod_amount || 0).toLocaleString()}` : "ไม่มี"]] : []), ["หมายเหตุ", viewParcel.remark || "—"], ["ผู้สร้าง", viewParcel.created_by_name || "—"], ["สร้างเมื่อ", new Date(viewParcel.created_at).toLocaleString("th-TH")]].map(([l, v], i) => v === "" ? <div key={i} style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", padding: "10px 0 4px", borderBottom: "1px solid #f1f5f9" }}>{l}</div> : <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #f8fafc" }}><span style={{ fontSize: 13, color: "#64748b" }}>{l}</span><span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", textAlign: "right", maxWidth: "60%", wordBreak: "break-word" }}>{v}</span></div>)}
         <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
           {perm.edit && <button onClick={() => { setEditParcel(viewParcel); setShowForm(true); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#e53e3e", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>✏️ แก้ไข</button>}
-          {perm.status && <button onClick={() => { setStatusParcel(viewParcel); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#1e293b", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>🔄 สถานะ</button>}
           {perm.print && <button onClick={() => { setPrintParcel(viewParcel); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>🖨️ ปริ้น</button>}
         </div>
       </div></div>}
 
       {/* MODALS */}
       {showForm && <ParcelForm parcel={editParcel} user={user} shops={shops} onClose={() => setShowForm(false)} onSave={() => { setShowForm(false); loadParcels(); }} />}
-      {statusParcel && <StatusModal parcel={statusParcel} onClose={() => setStatusParcel(null)} onSave={() => { setStatusParcel(null); loadParcels(); }} />}
       {printParcel && <PrintLabel parcel={printParcel} onClose={() => setPrintParcel(null)} />}
     </div>
   );
