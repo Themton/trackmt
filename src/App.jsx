@@ -999,7 +999,7 @@ export default function FlashBackend() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [showForm, setShowForm] = useState(false);
   const [editParcel, setEditParcel] = useState(null);
-  const [printParcel, setPrintParcel] = useState(null);
+  
   const [viewParcel, setViewParcel] = useState(null);
   const [shops, setShops] = useState([]);
   const [page, setPage] = useState(0);
@@ -1170,53 +1170,38 @@ export default function FlashBackend() {
     return { total: sel.length, noTracking: sel.filter(p => !p.flash_pno).length, hasTracking: sel.filter(p => p.flash_pno).length };
   }, [parcels, selectedIds]);
 
-  const batchPrint = async () => {
-    const targets = parcels.filter(p => selectedIds.has(p.id) && p.flash_pno);
-    if (!targets.length) { alert("ไม่มีรายการที่มีเลข Tracking ให้ปริ้น"); return; }
-    if (!confirm(`ปริ้นใบปะหน้า ${targets.length} ใบ?`)) return;
-    setGlobalLoading({ msg: "กำลังเตรียมใบปะหน้า...", progress: 10 });
+  // ═══ SHARED PRINT PAGE — ใช้ทั้งปริ้นเดี่ยวและหลายใบ ═══
+  const openPrintPage = (targets) => {
     const maskPhone = (ph) => (ph || "").replace(/^(\d{3})\d{4}(\d{3})$/, "$1****$2");
     const now = new Date().toLocaleString("en-GB", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
-    const win = window.open("", "_blank");
+    const total = targets.length;
     const labels = targets.map((p, idx) => {
       const sc = p.flash_sort_code || "";
       const pno = p.flash_pno;
-      return `
-      <div class="label">
-        <!-- Sort Code -->
-        <div class="sort-row">
-          <div class="sort-num">${idx + 1}</div>
-          <div class="sort-code">${sc || "FLASH EXPRESS"}</div>
-        </div>
-        <!-- Barcode -->
-        <div class="barcode-row"><img src="https://barcodeapi.org/api/128/${pno}?height=100" class="barcode-img" /></div>
-        <!-- Tracking -->
+      return `<div class="label">
+        <div class="sort-row"><div class="sort-num">${idx + 1}</div><div class="sort-code">${sc || "FLASH EXPRESS"}</div></div>
+        <div class="barcode-row"><img src="https://barcodeapi.org/api/128/${pno}?height=120&width=2" class="barcode-img" /></div>
         <div class="tracking-row">${pno}</div>
-        <!-- DST -->
-        <div class="dst-row"><b>DST</b> &nbsp; ${p.receiver_district || ""} — ${p.receiver_province || ""}</div>
-        <!-- Sender -->
+        <div class="dst-row"><b>DST</b> &nbsp;&nbsp; ${p.receiver_district || ""} — ${p.receiver_province || ""}</div>
         <div class="sender-row">ผู้ส่ง ${p.sender_name} ${p.sender_phone} ${p.sender_address || ""} ${p.sender_province || ""} ${p.sender_postal || ""}</div>
-        <!-- Receiver + QR -->
         <div class="recv-row">
           <div class="recv-info">
             <div class="recv-name">ผู้รับ ${p.receiver_name}</div>
             <div class="recv-phone">${maskPhone(p.receiver_phone)}</div>
             <div class="recv-addr">${p.receiver_address || ""}<br/>${p.receiver_subdistrict || ""}${p.receiver_subdistrict ? ", " : ""}${p.receiver_district || ""}<br/>${p.receiver_province || ""} ${p.receiver_postal || ""}</div>
           </div>
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${pno}&margin=0" class="qr-img" />
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${pno}&margin=0" class="qr-img" />
         </div>
-        <!-- COD -->
         ${p.cod_enabled ? `<div class="cod-row"><span class="cod-badge">COD</span><span class="cod-text">เก็บเงินค่าสินค้า COD ${Number(p.cod_amount || 0).toLocaleString()}</span></div>` : ""}
-        <!-- Note -->
-        ${p.remark ? `<div class="note-row"><b>Note:</b> ${p.remark}</div>` : ""}
-        <!-- Footer -->
-        <div class="footer-row"><span>Print-: ${now}</span><span>${idx + 1}/${targets.length}</span><span>THE MT</span></div>
+        ${p.remark ? `<div class="note-row">Note: ${p.remark}</div>` : ""}
+        <div class="footer-row"><span>Print-: ${now}</span><span>${idx + 1}/${total}</span><span>THE MT</span></div>
       </div>`;
     }).join("\n");
 
+    const win = window.open("", "_blank");
     win.document.write(`<!DOCTYPE html><html><head>
     <meta charset="UTF-8">
-    <title>ใบปะหน้า Flash Express (${targets.length} ใบ)</title>
+    <title>ใบปะหน้า Flash Express (${total} ใบ)</title>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
     <style>
       *{margin:0;padding:0;box-sizing:border-box}
@@ -1225,63 +1210,55 @@ export default function FlashBackend() {
       .toolbar button{padding:10px 24px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
       .btn-print{background:#dc2626;color:#fff}
       .btn-download{background:#059669;color:#fff}
-      .page-wrap{display:flex;flex-direction:column;align-items:center;padding:20px;gap:20px}
-      .label{width:100mm;height:75mm;background:#fff;border:1px solid #000;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 4px 20px rgba(0,0,0,.15)}
-      .sort-row{background:#333;color:#fff;display:flex;align-items:center}
-      .sort-num{background:#e67e22;color:#fff;font-size:11pt;font-weight:900;padding:1.5mm 3mm;min-width:8mm;text-align:center}
-      .sort-code{flex:1;text-align:center;font-size:16pt;font-weight:900;padding:1mm 2mm;letter-spacing:1px}
-      .barcode-row{text-align:center;padding:2mm 4mm 1mm}
-      .barcode-img{width:88mm;height:14mm}
-      .tracking-row{background:#f3f4f6;text-align:center;font-size:13pt;font-weight:900;font-family:monospace;letter-spacing:2px;padding:1mm;border-top:0.5mm solid #ccc;border-bottom:0.5mm solid #ccc}
-      .dst-row{background:#555;color:#fff;font-size:8pt;font-weight:700;padding:1mm 3mm}
-      .sender-row{font-size:6pt;color:#666;padding:1mm 3mm;border-bottom:0.3mm solid #ddd}
-      .recv-row{display:flex;flex:1;padding:1mm 3mm}
+      .page-wrap{display:flex;flex-direction:column;align-items:center;padding:24px;gap:24px}
+      .label{width:100mm;height:75mm;background:#fff;border:1.5px solid #000;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 4px 24px rgba(0,0,0,.18)}
+      .sort-row{background:#333;color:#fff;display:flex;align-items:stretch;min-height:8mm}
+      .sort-num{background:#e67e22;color:#fff;font-size:14pt;font-weight:900;display:flex;align-items:center;justify-content:center;min-width:10mm}
+      .sort-code{flex:1;display:flex;align-items:center;justify-content:center;font-size:20pt;font-weight:900;letter-spacing:1px}
+      .barcode-row{text-align:center;padding:2.5mm 3mm 1mm}
+      .barcode-img{width:92mm;height:16mm}
+      .tracking-row{background:#f0f0f0;text-align:center;font-size:15pt;font-weight:900;font-family:'Courier New',monospace;letter-spacing:2.5px;padding:1.5mm 0;border-top:0.5mm solid #bbb;border-bottom:0.5mm solid #bbb}
+      .dst-row{background:#666;color:#fff;font-size:10pt;font-weight:700;padding:1mm 3mm}
+      .sender-row{font-size:7pt;color:#555;padding:1mm 3mm;border-bottom:0.3mm solid #ddd}
+      .recv-row{display:flex;flex:1;padding:1.5mm 3mm;gap:2mm}
       .recv-info{flex:1}
-      .recv-name{font-size:9pt;font-weight:800}
-      .recv-phone{font-size:13pt;font-weight:900;font-family:monospace}
-      .recv-addr{font-size:7pt;line-height:1.4;margin-top:1mm}
-      .qr-img{width:18mm;height:18mm;align-self:center}
-      .cod-row{background:#000;display:flex;align-items:center;padding:1.5mm 3mm;gap:3mm}
-      .cod-badge{background:#fff;color:#000;font-size:7pt;font-weight:900;padding:0.5mm 2mm}
-      .cod-text{color:#fff;font-size:14pt;font-weight:900}
-      .note-row{font-size:8pt;font-weight:700;padding:1mm 3mm;border-top:0.3mm solid #999;background:#f9f9f9}
-      .footer-row{display:flex;justify-content:space-between;font-size:5pt;color:#999;padding:0.5mm 3mm;border-top:0.3mm solid #ddd;margin-top:auto}
-      @media print{
-        .toolbar{display:none}
-        body{background:#fff}
-        .page-wrap{padding:0;gap:0}
-        .label{box-shadow:none;page-break-after:always}
-        body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-      }
+      .recv-name{font-size:11pt;font-weight:800}
+      .recv-phone{font-size:16pt;font-weight:900;font-family:'Courier New',monospace;line-height:1.2}
+      .recv-addr{font-size:8pt;line-height:1.5;margin-top:1mm}
+      .qr-img{width:22mm;height:22mm;align-self:center}
+      .cod-row{background:#000;display:flex;align-items:center;padding:2mm 3mm;gap:3mm}
+      .cod-badge{background:#fff;color:#000;font-size:8pt;font-weight:900;padding:1mm 3mm}
+      .cod-text{color:#fff;font-size:16pt;font-weight:900}
+      .note-row{font-size:10pt;font-weight:700;padding:1.2mm 3mm;border-top:0.3mm solid #999;background:#f9f9f9}
+      .footer-row{display:flex;justify-content:space-between;font-size:6pt;color:#999;padding:0.5mm 3mm;border-top:0.3mm solid #ddd;margin-top:auto}
+      @media print{.toolbar{display:none}body{background:#fff}.page-wrap{padding:0;gap:0}.label{box-shadow:none;border-width:0.5mm;page-break-after:always}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
       @page{size:100mm 75mm;margin:0}
     </style>
     </head><body>
       <div class="toolbar">
-        <span style="font-weight:700;font-size:16px">🖨️ ใบปะหน้า Flash Express — ${targets.length} ใบ</span>
+        <span style="font-weight:700;font-size:16px">🖨️ ใบปะหน้า Flash Express — ${total} ใบ</span>
         <button class="btn-print" onclick="window.print()">🖨️ ปริ้น</button>
-        <button class="btn-download" onclick="downloadPDF()">📥 ดาวน์โหลด PDF</button>
+        <button class="btn-download" onclick="window.print()">📥 ดาวน์โหลด PDF</button>
       </div>
       <div class="page-wrap">${labels}</div>
       <script>
-        function downloadPDF(){
-          window.print();
-        }
-        // Wait for images
         var imgs=document.querySelectorAll('img'),loaded=0,total=imgs.length;
-        imgs.forEach(function(img){
-          if(img.complete){loaded++;}
-          else{img.onload=img.onerror=function(){loaded++;};}
-        });
+        imgs.forEach(function(img){if(img.complete){loaded++;}else{img.onload=img.onerror=function(){loaded++;};}});
       </script>
     </body></html>`);
     win.document.close();
+  };
+
+  const batchPrint = async () => {
+    const targets = parcels.filter(p => selectedIds.has(p.id) && p.flash_pno);
+    if (!targets.length) { alert("ไม่มีรายการที่มีเลข Tracking ให้ปริ้น"); return; }
+    if (!confirm(`ปริ้นใบปะหน้า ${targets.length} ใบ?`)) return;
+    openPrintPage(targets);
     // Mark all as printed
     for (let i = 0; i < targets.length; i++) {
-      setGlobalLoading({ msg: `กำลังอัพเดตสถานะ ${i + 1}/${targets.length}`, progress: Math.round(((i + 1) / targets.length) * 100) });
-      if (!isDemo) { try { await sb.update("fx_parcels", targets[i].id, { label_printed: true, status: "printed" }); } catch (e) { console.error("batch markPrinted FAILED:", targets[i].id, e.message); } }
+      if (!isDemo) { try { await sb.update("fx_parcels", targets[i].id, { label_printed: true, status: "printed" }); } catch {} }
     }
     setParcels(prev => prev.map(x => targets.some(t => t.id === x.id) ? { ...x, label_printed: true, status: "printed" } : x));
-    setGlobalLoading(null);
     showToast(`ปริ้นสำเร็จ ${targets.length} ใบ`);
     setSelectedIds(new Set());
   };
@@ -1546,7 +1523,7 @@ export default function FlashBackend() {
                       <tbody>{paged.map((p, i) => { const d = new Date(p.created_at); return (
                         <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedIds.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
                           {perm.status && <td style={{ padding: "8px", textAlign: "center" }}><input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} style={{ cursor: "pointer" }} /></td>}
-                          <td style={{ padding: "8px", textAlign: "center" }}>{p.flash_pno ? <span style={{ cursor: "pointer", fontSize: 14, color: p.status === "printed" ? "#059669" : "#64748b" }} onClick={() => { if (!confirm(`ปริ้นใบปะหน้า?\n\n${p.receiver_name}\n${p.flash_pno}`)) return; setPrintParcel(p); markPrinted(p); }}>{p.status === "printed" ? "🟢" : "🖨️"}</span> : <span style={{ color: "#e5e7eb" }}>—</span>}</td>
+                          <td style={{ padding: "8px", textAlign: "center" }}>{p.flash_pno ? <span style={{ cursor: "pointer", fontSize: 14, color: p.status === "printed" ? "#059669" : "#64748b" }} onClick={() => { if (!confirm(`ปริ้นใบปะหน้า?\n\n${p.receiver_name}\n${p.flash_pno}`)) return; openPrintPage([p]); markPrinted(p); }}>{p.status === "printed" ? "🟢" : "🖨️"}</span> : <span style={{ color: "#e5e7eb" }}>—</span>}</td>
                           <td style={{ padding: "8px 10px", fontSize: 12, whiteSpace: "nowrap" }}>{d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</td>
                           <td style={{ padding: "8px 10px", fontSize: 12, whiteSpace: "nowrap", color: "#64748b" }}>{d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} น.</td>
                           <td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => setViewParcel(p)}>{p.receiver_name}</td>
@@ -1608,13 +1585,12 @@ export default function FlashBackend() {
         {[["Tracking", viewParcel.flash_pno || "—"], ["Sort Code", viewParcel.flash_sort_code || "—"], ["── ผู้ส่ง ──", ""], ["ชื่อ", viewParcel.sender_name], ["เบอร์", viewParcel.sender_phone], ["── ผู้รับ ──", ""], ["ชื่อ", viewParcel.receiver_name], ["เบอร์", viewParcel.receiver_phone], ["ที่อยู่", `${viewParcel.receiver_address || ""} ${viewParcel.receiver_subdistrict || ""} ${viewParcel.receiver_district || ""} ${viewParcel.receiver_province || ""} ${viewParcel.receiver_postal || ""}`], ["── พัสดุ ──", ""], ["น้ำหนัก", `${viewParcel.weight || 1} kg`], ["สินค้า", viewParcel.item_desc || "—"], ...(perm.viewCOD ? [["COD", viewParcel.cod_enabled ? `฿${Number(viewParcel.cod_amount || 0).toLocaleString()}` : "ไม่มี"]] : []), ["หมายเหตุ", viewParcel.remark || "—"], ["ผู้สร้าง", viewParcel.created_by_name || "—"], ["สร้างเมื่อ", new Date(viewParcel.created_at).toLocaleString("th-TH")]].map(([l, v], i) => v === "" ? <div key={i} style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", padding: "10px 0 4px", borderBottom: "1px solid #f1f5f9" }}>{l}</div> : <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #f8fafc" }}><span style={{ fontSize: 13, color: "#64748b" }}>{l}</span><span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", textAlign: "right", maxWidth: "60%", wordBreak: "break-word" }}>{v}</span></div>)}
         <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
           {perm.edit && <button onClick={() => { setEditParcel(viewParcel); setShowForm(true); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#e53e3e", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>✏️ แก้ไข</button>}
-          {perm.print && <button onClick={() => { setPrintParcel(viewParcel); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>🖨️ ปริ้น</button>}
+          {perm.print && viewParcel.flash_pno && <button onClick={() => { openPrintPage([viewParcel]); markPrinted(viewParcel); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>🖨️ ปริ้น</button>}
         </div>
       </div></div>}
 
       {/* MODALS */}
       {showForm && <ParcelForm parcel={editParcel} user={user} shops={shops} onClose={() => setShowForm(false)} onSave={() => { setShowForm(false); loadParcels(); }} />}
-      {printParcel && <PrintLabel parcel={printParcel} onClose={() => setPrintParcel(null)} />}
     </div>
   );
 }
