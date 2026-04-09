@@ -726,7 +726,7 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
         success++;
       } catch (err) { console.warn("Import failed:", r.receiver_name, err.message); }
       setProgress(Math.round(((i + 1) / selected.length) * 100));
-      if (i % 5 === 4) await new Promise(r => setTimeout(r, 200));
+      if (i % 5 === 4) await new Promise(r => setTimeout(r, 500));
     }
     setDone(true);
     const failed = selected.length - success;
@@ -880,7 +880,8 @@ function ShopManagement({ onClose, onUpdate, isDemo, inline }) {
   const toggleDefault = async (s) => {
     if (isDemo) return;
     try {
-      for (const sh of shops) { if (sh.is_default) await sb.update("fx_shops", sh.id, { is_default: false }); }
+      const currentDefault = shops.find(sh => sh.is_default);
+      if (currentDefault && currentDefault.id !== s.id) await sb.update("fx_shops", currentDefault.id, { is_default: false });
       await sb.update("fx_shops", s.id, { is_default: true }); load(); onUpdate?.();
     } catch (e) { alert(e.message); }
   };
@@ -1003,8 +1004,11 @@ export default function FlashBackend() {
   const statsData = useMemo(() => { const list = selectedShopFilter ? parcels.filter(p => p.shop_id === selectedShopFilter) : parcels; return list; }, [parcels, selectedShopFilter]);
   const stats = useMemo(() => ({ total: statsData.length, withTracking: statsData.filter(p => p.flash_pno).length, noTracking: statsData.filter(p => !p.flash_pno).length, codTotal: statsData.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [statsData]);
 
-  const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); loadParcels(); } catch (e) { alert(e.message); } };
-  const markPrinted = async (p) => { if (isDemo) { setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: true } : x)); return; } try { await sb.update("fx_parcels", p.id, { label_printed: true, label_printed_at: new Date().toISOString() }); loadParcels(); } catch {} };
+  const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); setParcels(prev => prev.filter(x => x.id !== p.id)); showToast("ลบสำเร็จ"); } catch (e) { alert(e.message); } };
+  const markPrinted = async (p) => {
+    setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: true } : x));
+    if (!isDemo) { try { await sb.update("fx_parcels", p.id, { label_printed: true, label_printed_at: new Date().toISOString() }); } catch {} }
+  };
 
   // สร้างเลข Tracking Flash Express
   const [flashLoading, setFlashLoading] = useState(null);
@@ -1036,9 +1040,8 @@ export default function FlashBackend() {
           status: "created",
         };
         if (!isDemo) await sb.update("fx_parcels", p.id, updates);
-        else setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
+        setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
         showToast(`สร้างเลข Tracking สำเร็จ! ${updates.flash_pno}`);
-        loadParcels();
       } else {
         alert(`❌ Flash API Error (code: ${result.code}):\n${result.message || ""}\n${result.data ? "\nรายละเอียด: " + JSON.stringify(result.data) : ""}\n\n📤 ผู้ส่ง: ${p.sender_name || "❌"} | ${p.sender_phone || "❌"}\nที่อยู่ส่ง: ${p.sender_address || "❌"} | ${p.sender_province || "❌"} | ปณ.${p.sender_postal || "❌"}\n\n📥 ผู้รับ: ${p.receiver_name} | ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "❌"} | อำเภอ: ${p.receiver_district || "❌"}\nตำบล: ${p.receiver_subdistrict || "❌"} | ปณ.${p.receiver_postal || "❌"}\nที่อยู่: ${p.receiver_address || "❌"}`);
       }
@@ -1067,7 +1070,7 @@ export default function FlashBackend() {
         } else { errors.push(`${p.receiver_name}: ${result.message || "error"}`); }
       } catch (e) { errors.push(`${p.receiver_name}: ${e.message}`); }
       setBatchProgress({ total: targets.length, done: i + 1, success, errors: [...errors] });
-      if (i % 3 === 2) await new Promise(r => setTimeout(r, 300));
+      if (i % 3 === 2) await new Promise(r => setTimeout(r, 500));
     }
     setGlobalLoading(null);
     showToast(`สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ`);
