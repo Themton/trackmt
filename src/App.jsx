@@ -11,13 +11,11 @@ const BASE_URL = SUPABASE_URL; // ใช้ Supabase ตรง
 // ═══════════════════════════════════════════════════════════════
 // FLASH EXPRESS API CONFIG
 // ═══════════════════════════════════════════════════════════════
-// Toggle: true = Training (ทดสอบ), false = Production (ใช้งานจริง)
 const FLASH_TRAINING = false;
-
-const FLASH_MCH_ID = FLASH_TRAINING ? "CA5610" : "CBC9351";
-const FLASH_API_KEY = FLASH_TRAINING
-  ? "0bc50ae59546a42fe64dca031005fdb1528486214ec0a4c01551d4f7f762a84c"
-  : "0d0b630e5e245149fe120a062c342b3f41ffaea51597464841e97d324b792334";
+const FLASH_ACCOUNTS = [
+  { name: "CBC9351", mchId: "CBC9351", key: "0d0b630e5e245149fe120a062c342b3f41ffaea51597464841e97d324b792334" },
+  { name: "CBF1654", mchId: "CBF1654", key: "976a16aac51569cb55b055c0665fef802d77a8dfad05b277b6fe312985e360e3" },
+];
 const FLASH_DIRECT_URL = FLASH_TRAINING
   ? "https://open-api-tra.flashexpress.com"
   : "https://open-api.flashexpress.com";
@@ -27,21 +25,26 @@ const FLASH_API_URL = FLASH_TRAINING
 
 // Flash Express API Helper
 const flashApi = {
-  async sign(params) {
+  getAccount(mchId) {
+    return FLASH_ACCOUNTS.find(a => a.mchId === mchId) || FLASH_ACCOUNTS[0];
+  },
+  async sign(params, apiKey) {
     const keys = Object.keys(params).filter(k => k !== 'sign' && params[k] !== '' && params[k] !== null && params[k] !== undefined).sort();
     const stringA = keys.map(k => `${k}=${params[k]}`).join("&");
-    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stringA + "&key=" + FLASH_API_KEY));
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stringA + "&key=" + apiKey));
     return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
   },
-  async ping() {
-    const params = { mchId: FLASH_MCH_ID, nonceStr: String(Date.now()) };
-    params.sign = await this.sign(params);
+  async ping(account) {
+    const acc = account || FLASH_ACCOUNTS[0];
+    const params = { mchId: acc.mchId, nonceStr: String(Date.now()) };
+    params.sign = await this.sign(params, acc.key);
     const body = new URLSearchParams(params).toString();
     const res = await fetch(`${FLASH_API_URL}/open/v1/ping`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
     const text = await res.text();
     try { return JSON.parse(text); } catch { return { code: 1, message: text }; }
   },
-  async createOrder(parcel) {
+  async createOrder(parcel, account) {
+    const acc = account || FLASH_ACCOUNTS[0];
     // Validate
     const missing = [];
     if (!parcel.sender_name) missing.push("ชื่อผู้ส่ง");
@@ -55,9 +58,8 @@ const flashApi = {
     const mapProv = (p) => p === "กรุงเทพมหานคร" ? "กรุงเทพ" : p;
     const uniqueId = "O" + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
-    // Build params — ตาม Flash Express docs เป๊ะ
     const params = {
-      mchId: FLASH_MCH_ID,
+      mchId: acc.mchId,
       nonceStr: String(Date.now()) + Math.random().toString(36).substring(2, 8),
       outTradeNo: uniqueId,
       srcName: parcel.sender_name,
@@ -74,19 +76,16 @@ const flashApi = {
       codEnabled: parcel.cod_enabled ? "1" : "0",
       weight: String(Math.max(1, Math.round((parcel.weight || 1) * 1000))),
     };
-    // Optional: sender province/postal — ถ้าไม่มี postal ดึงจากที่อยู่
     if (parcel.sender_province) params.srcProvinceName = mapProv(parcel.sender_province);
     let senderPostal = parcel.sender_postal || "";
     if (!senderPostal) { const m = (parcel.sender_address || "").match(/\b(\d{5})\b/); if (m) senderPostal = m[1]; }
     if (senderPostal) params.srcPostalCode = String(senderPostal);
-    // Optional: receiver subdistrict
     if (parcel.receiver_subdistrict) params.dstDistrictName = parcel.receiver_subdistrict;
-    // COD amount
     if (parcel.cod_enabled && parcel.cod_amount > 0) {
       params.codAmount = String(Math.round(parcel.cod_amount * 100));
     }
-    console.log("Flash API params (before sign):", JSON.stringify(params, null, 2));
-    params.sign = await this.sign(params);
+    console.log("Flash API [" + acc.mchId + "] params:", JSON.stringify(params, null, 2));
+    params.sign = await this.sign(params, acc.key);
 
     const body = new URLSearchParams(params).toString();
     console.log("Flash API body:", decodeURIComponent(body));
@@ -854,7 +853,7 @@ function ShopManagement({ onClose, onUpdate, isDemo, inline }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ name: "", phone: "", address: "", province: "", postal: "" });
+  const [form, setForm] = useState({ name: "", phone: "", address: "", province: "", postal: "", flash_mch_id: FLASH_ACCOUNTS[0]?.mchId || "" });
   const [saving, setSaving] = useState(false);
   const I = { width: "100%", padding: "10px 14px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 14, outline: "none", fontFamily: "inherit" };
 
@@ -864,8 +863,8 @@ function ShopManagement({ onClose, onUpdate, isDemo, inline }) {
   }, [isDemo]);
   useEffect(() => { load(); }, [load]);
 
-  const openAdd = () => { setEditId(null); setForm({ name: "", phone: "", address: "", province: "", postal: "" }); setShowForm(true); };
-  const openEdit = (s) => { setEditId(s.id); setForm({ name: s.name || "", phone: s.phone || "", address: s.address || "", province: s.province || "", postal: s.postal || "" }); setShowForm(true); };
+  const openAdd = () => { setEditId(null); setForm({ name: "", phone: "", address: "", province: "", postal: "", flash_mch_id: FLASH_ACCOUNTS[0]?.mchId || "" }); setShowForm(true); };
+  const openEdit = (s) => { setEditId(s.id); setForm({ name: s.name || "", phone: s.phone || "", address: s.address || "", province: s.province || "", postal: s.postal || "", flash_mch_id: s.flash_mch_id || FLASH_ACCOUNTS[0]?.mchId || "" }); setShowForm(true); };
 
   const handleSave = async () => {
     if (!form.name || !form.phone) { alert("กรุณากรอกชื่อร้าน + เบอร์โทร"); return; }
@@ -905,6 +904,7 @@ function ShopManagement({ onClose, onUpdate, isDemo, inline }) {
           <div style={{ gridColumn: "span 2" }}><label style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>ที่อยู่</label><input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="บ้านเลขที่ ถนน ซอย ตำบล อำเภอ จังหวัด รหัสไปรษณีย์" style={I} /></div>
           <div><label style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>จังหวัด</label><select value={form.province} onChange={e => setForm(f => ({ ...f, province: e.target.value }))} style={{ ...I, background: "#fff" }}><option value="">--</option>{PROVINCES.map(p => <option key={p}>{p}</option>)}</select></div>
           <div><label style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>รหัสไปรษณีย์</label><input value={form.postal} onChange={e => setForm(f => ({ ...f, postal: e.target.value }))} placeholder="XXXXX" style={I} /></div>
+          <div style={{ gridColumn: "span 2" }}><label style={{ fontSize: 12, fontWeight: 600, color: "#dc2626" }}>⚡ บัญชี Flash Express</label><select value={form.flash_mch_id} onChange={e => setForm(f => ({ ...f, flash_mch_id: e.target.value }))} style={{ ...I, background: "#fff", borderColor: "#fbbf24" }}>{FLASH_ACCOUNTS.map(a => <option key={a.mchId} value={a.mchId}>{a.name} ({a.mchId})</option>)}</select></div>
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <button onClick={handleSave} disabled={saving} style={{ padding: "10px 20px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 600, cursor: "pointer" }}>{saving ? "..." : editId ? "💾 บันทึก" : "✅ เพิ่มร้าน"}</button>
@@ -920,6 +920,7 @@ function ShopManagement({ onClose, onUpdate, isDemo, inline }) {
           <div>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name} {s.is_default && <span style={{ fontSize: 10, background: "#ecfdf5", color: "#059669", padding: "2px 8px", borderRadius: 10, fontWeight: 600, marginLeft: 6 }}>ค่าเริ่มต้น</span>}</div>
             <div style={{ fontSize: 12, color: "#64748b" }}>{s.phone} · {s.address} {s.province} {s.postal}</div>
+            <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 600 }}>⚡ {s.flash_mch_id || FLASH_ACCOUNTS[0]?.mchId}</div>
           </div>
           <div style={{ display: "flex", gap: 4 }}>
             <button title="แก้ไข" onClick={() => openEdit(s)} style={{ width: 30, height: 30, border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</button>
@@ -1010,14 +1011,22 @@ export default function FlashBackend() {
   const [globalLoading, setGlobalLoading] = useState(null); // { msg, progress }
   const [toast, setToast] = useState(null); // { msg, type }
   const showToast = (msg, type = "success") => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+  // Get Flash account for a parcel (from its shop)
+  const getFlashAccount = (p) => {
+    const shop = shops?.find(s => s.id === p.shop_id);
+    const mchId = shop?.flash_mch_id || FLASH_ACCOUNTS[0]?.mchId;
+    return flashApi.getAccount(mchId);
+  };
+
   const createFlashOrder = async (p) => {
     if (p.flash_pno) { alert("พัสดุนี้มีเลข Tracking แล้ว: " + p.flash_pno); return; }
     if (!p.receiver_name || !p.receiver_phone) { alert(`❌ ${p.receiver_name}\nกรุณากรอกชื่อและเบอร์ผู้รับก่อน`); return; }
-    if (!p.receiver_province && !p.receiver_postal) { alert(`❌ ${p.receiver_name}\nกรุณากรอกจังหวัดหรือรหัสไปรษณีย์ผู้รับ\n\nกด ✏️ แก้ไข → กรอกที่อยู่ให้ครบ`); return; }
-    if (!confirm(`สร้างเลข Tracking Flash Express?\n\nผู้รับ: ${p.receiver_name}\nเบอร์: ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "—"}\nอำเภอ: ${p.receiver_district || "—"}`)) return;
+    if (!p.receiver_province && !p.receiver_postal) { alert(`❌ ${p.receiver_name}\nกรุณากรอกจังหวัดหรือรหัสไปรษณีย์ผู้รับ`); return; }
+    const acc = getFlashAccount(p);
+    if (!confirm(`สร้างเลข Tracking Flash Express?\n\nบัญชี: ${acc.mchId}\nผู้รับ: ${p.receiver_name}\nเบอร์: ${p.receiver_phone}`)) return;
     setFlashLoading(p.id);
     try {
-      const result = await flashApi.createOrder(p);
+      const result = await flashApi.createOrder(p, acc);
       console.log("Flash API response:", JSON.stringify(result));
       if (result.code === 1 && result.data) {
         const updates = {
@@ -1050,7 +1059,7 @@ export default function FlashBackend() {
       setGlobalLoading({ msg: `กำลังสร้างเลข Tracking ${i + 1}/${targets.length}`, progress: pct });
       const p = targets[i];
       try {
-        const result = await flashApi.createOrder(p);
+        const result = await flashApi.createOrder(p, getFlashAccount(p));
         if (result.code === 1 && result.data) {
           const updates = { flash_pno: result.data.pno || "", flash_sort_code: result.data.sortCode || result.data.dstStoreName || "", flash_api_response: result.data, status: "created" };
           if (!isDemo) await sb.update("fx_parcels", p.id, updates);
