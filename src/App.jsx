@@ -1089,57 +1089,105 @@ export default function FlashBackend() {
     const targets = parcels.filter(p => selectedIds.has(p.id) && p.flash_pno);
     if (!targets.length) { alert("ไม่มีรายการที่มีเลข Tracking ให้ปริ้น"); return; }
     const maskPhone = (ph) => (ph || "").replace(/^(\d{3})\d{4}(\d{3})$/, "$1****$2");
+    const now = new Date().toLocaleString("en-GB", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
     const win = window.open("", "_blank");
     const labels = targets.map((p, idx) => {
       const sc = p.flash_sort_code || "";
       const pno = p.flash_pno;
       return `
-      <div style="width:100mm;height:75mm;font-family:'Sarabun',sans-serif;border:0.3mm solid #000;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;page-break-after:always">
-        <div style="background:#333;color:#fff;display:flex;align-items:center">
-          ${sc ? `<div style="background:#e67e22;color:#fff;font-size:8pt;font-weight:900;padding:1mm 2mm;min-width:6mm;text-align:center">⚡</div>` : ""}
-          <div style="flex:1;text-align:center;font-size:${sc ? "16pt" : "10pt"};font-weight:900;padding:0.5mm 2mm;letter-spacing:1px">${sc || "FLASH EXPRESS"}</div>
+      <div class="label">
+        <!-- Sort Code -->
+        <div class="sort-row">
+          <div class="sort-num">${idx + 1}</div>
+          <div class="sort-code">${sc || "FLASH EXPRESS"}</div>
         </div>
-        <div style="text-align:center;padding:1mm 3mm 0"><img src="https://barcodeapi.org/api/128/${pno}?height=80" style="width:90mm;height:11mm" /></div>
-        <div style="background:#f5f5f5;text-align:center;font-size:11pt;font-weight:900;font-family:monospace;letter-spacing:1.5px;padding:0.5mm;border-top:0.3mm solid #ccc;border-bottom:0.3mm solid #ccc">${pno}</div>
-        <div style="background:#555;color:#fff;font-size:7pt;font-weight:700;padding:0.5mm 2mm">DST &nbsp; ${p.receiver_district || ""} — ${p.receiver_province || ""}</div>
-        <div style="font-size:5.5pt;color:#666;padding:0.5mm 2mm;border-bottom:0.2mm solid #ddd">ผู้ส่ง ${p.sender_name} ${p.sender_phone} ${p.sender_address || ""} ${p.sender_province || ""} ${p.sender_postal || ""}</div>
-        <div style="display:flex;flex:1;padding:0.5mm 2mm">
-          <div style="flex:1">
-            <div style="font-size:8pt;font-weight:800">ผู้รับ ${p.receiver_name}</div>
-            <div style="font-size:11pt;font-weight:900;font-family:monospace">${maskPhone(p.receiver_phone)}</div>
-            <div style="font-size:6pt;line-height:1.3;margin-top:0.5mm">${p.receiver_address || ""}<br/>${p.receiver_subdistrict || ""}${p.receiver_subdistrict ? ", " : ""}${p.receiver_district || ""}<br/>${p.receiver_province || ""} ${p.receiver_postal || ""}</div>
+        <!-- Barcode -->
+        <div class="barcode-row"><img src="https://barcodeapi.org/api/128/${pno}?height=100" class="barcode-img" /></div>
+        <!-- Tracking -->
+        <div class="tracking-row">${pno}</div>
+        <!-- DST -->
+        <div class="dst-row"><b>DST</b> &nbsp; ${p.receiver_district || ""} — ${p.receiver_province || ""}</div>
+        <!-- Sender -->
+        <div class="sender-row">ผู้ส่ง ${p.sender_name} ${p.sender_phone} ${p.sender_address || ""} ${p.sender_province || ""} ${p.sender_postal || ""}</div>
+        <!-- Receiver + QR -->
+        <div class="recv-row">
+          <div class="recv-info">
+            <div class="recv-name">ผู้รับ ${p.receiver_name}</div>
+            <div class="recv-phone">${maskPhone(p.receiver_phone)}</div>
+            <div class="recv-addr">${p.receiver_address || ""}<br/>${p.receiver_subdistrict || ""}${p.receiver_subdistrict ? ", " : ""}${p.receiver_district || ""}<br/>${p.receiver_province || ""} ${p.receiver_postal || ""}</div>
           </div>
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${pno}&margin=0" style="width:16mm;height:16mm;align-self:center" />
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${pno}&margin=0" class="qr-img" />
         </div>
-        ${p.cod_enabled ? `<div style="background:#000;display:flex;align-items:center;padding:0.8mm 2mm"><span style="background:#fff;color:#000;font-size:6pt;font-weight:900;padding:0.3mm 1.5mm;margin-right:2mm">COD</span><span style="color:#fff;font-size:12pt;font-weight:900">เก็บเงินค่าสินค้า COD ${Number(p.cod_amount || 0).toLocaleString()}</span></div>` : ""}
-        ${p.remark ? `<div style="font-size:7pt;font-weight:700;padding:0.5mm 2mm;border-top:0.2mm solid #999;background:#f9f9f9">Note: ${p.remark}</div>` : ""}
-        <div style="display:flex;justify-content:space-between;font-size:4.5pt;color:#999;padding:0.3mm 2mm;border-top:0.2mm solid #ddd;margin-top:auto"><span>${idx + 1}/${targets.length}</span><span>${p.weight || 1}kg</span></div>
+        <!-- COD -->
+        ${p.cod_enabled ? `<div class="cod-row"><span class="cod-badge">COD</span><span class="cod-text">เก็บเงินค่าสินค้า COD ${Number(p.cod_amount || 0).toLocaleString()}</span></div>` : ""}
+        <!-- Note -->
+        ${p.remark ? `<div class="note-row"><b>Note:</b> ${p.remark}</div>` : ""}
+        <!-- Footer -->
+        <div class="footer-row"><span>Print-: ${now}</span><span>${idx + 1}/${targets.length}</span><span>THE MT</span></div>
       </div>`;
     }).join("\n");
 
-    win.document.write(`<!DOCTYPE html><html><head><style>@page{size:100mm 75mm;margin:0}*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Sarabun',sans-serif}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.loading-msg{display:none}}</style></head><body>
-      <div class="loading-msg" style="position:fixed;top:0;left:0;right:0;padding:12px;background:#fef3c7;text-align:center;font-size:14px;font-weight:700;z-index:999">⏳ กำลังโหลดบาร์โค้ด + QR Code... รอสักครู่</div>
-      ${labels}
+    win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>ใบปะหน้า Flash Express (${targets.length} ใบ)</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:'IBM Plex Sans Thai',sans-serif;background:#e5e7eb}
+      .toolbar{position:sticky;top:0;z-index:100;background:#fff;padding:12px 24px;border-bottom:2px solid #e2e8f0;display:flex;align-items:center;gap:12px;justify-content:center}
+      .toolbar button{padding:10px 24px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+      .btn-print{background:#dc2626;color:#fff}
+      .btn-download{background:#059669;color:#fff}
+      .page-wrap{display:flex;flex-direction:column;align-items:center;padding:20px;gap:20px}
+      .label{width:100mm;height:75mm;background:#fff;border:1px solid #000;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 4px 20px rgba(0,0,0,.15)}
+      .sort-row{background:#333;color:#fff;display:flex;align-items:center}
+      .sort-num{background:#e67e22;color:#fff;font-size:11pt;font-weight:900;padding:1.5mm 3mm;min-width:8mm;text-align:center}
+      .sort-code{flex:1;text-align:center;font-size:16pt;font-weight:900;padding:1mm 2mm;letter-spacing:1px}
+      .barcode-row{text-align:center;padding:2mm 4mm 1mm}
+      .barcode-img{width:88mm;height:14mm}
+      .tracking-row{background:#f3f4f6;text-align:center;font-size:13pt;font-weight:900;font-family:monospace;letter-spacing:2px;padding:1mm;border-top:0.5mm solid #ccc;border-bottom:0.5mm solid #ccc}
+      .dst-row{background:#555;color:#fff;font-size:8pt;font-weight:700;padding:1mm 3mm}
+      .sender-row{font-size:6pt;color:#666;padding:1mm 3mm;border-bottom:0.3mm solid #ddd}
+      .recv-row{display:flex;flex:1;padding:1mm 3mm}
+      .recv-info{flex:1}
+      .recv-name{font-size:9pt;font-weight:800}
+      .recv-phone{font-size:13pt;font-weight:900;font-family:monospace}
+      .recv-addr{font-size:7pt;line-height:1.4;margin-top:1mm}
+      .qr-img{width:18mm;height:18mm;align-self:center}
+      .cod-row{background:#000;display:flex;align-items:center;padding:1.5mm 3mm;gap:3mm}
+      .cod-badge{background:#fff;color:#000;font-size:7pt;font-weight:900;padding:0.5mm 2mm}
+      .cod-text{color:#fff;font-size:14pt;font-weight:900}
+      .note-row{font-size:8pt;font-weight:700;padding:1mm 3mm;border-top:0.3mm solid #999;background:#f9f9f9}
+      .footer-row{display:flex;justify-content:space-between;font-size:5pt;color:#999;padding:0.5mm 3mm;border-top:0.3mm solid #ddd;margin-top:auto}
+      @media print{
+        .toolbar{display:none}
+        body{background:#fff}
+        .page-wrap{padding:0;gap:0}
+        .label{box-shadow:none;page-break-after:always}
+        body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      }
+      @page{size:100mm 75mm;margin:0}
+    </style>
+    </head><body>
+      <div class="toolbar">
+        <span style="font-weight:700;font-size:16px">🖨️ ใบปะหน้า Flash Express — ${targets.length} ใบ</span>
+        <button class="btn-print" onclick="window.print()">🖨️ ปริ้น</button>
+        <button class="btn-download" onclick="downloadPDF()">📥 ดาวน์โหลด PDF</button>
+      </div>
+      <div class="page-wrap">${labels}</div>
       <script>
-        function waitAndPrint() {
-          var imgs = document.querySelectorAll('img');
-          var loaded = 0;
-          var total = imgs.length;
-          if (total === 0) { window.print(); return; }
-          imgs.forEach(function(img) {
-            if (img.complete) { loaded++; if(loaded>=total) window.print(); }
-            else {
-              img.onload = function() { loaded++; if(loaded>=total) window.print(); };
-              img.onerror = function() { loaded++; if(loaded>=total) window.print(); };
-            }
-          });
-          setTimeout(function() { window.print(); }, 5000);
+        function downloadPDF(){
+          window.print();
         }
-        waitAndPrint();
+        // Wait for images
+        var imgs=document.querySelectorAll('img'),loaded=0,total=imgs.length;
+        imgs.forEach(function(img){
+          if(img.complete){loaded++;}
+          else{img.onload=img.onerror=function(){loaded++;};}
+        });
       </script>
     </body></html>`);
     win.document.close();
-    setSelectedIds(new Set());
   };
 
   const batchDelete = async () => {
