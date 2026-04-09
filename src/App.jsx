@@ -1095,7 +1095,7 @@ export default function FlashBackend() {
       const result = await flashApi.cancelOrder(p.flash_pno, acc);
       console.log("Flash cancel response:", JSON.stringify(result));
       if (result.code === 1) {
-        const updates = { status: "cancelled", flash_cancelled_at: new Date().toISOString() };
+        const updates = { status: "cancelled" };
         if (!isDemo) await sb.update("fx_parcels", p.id, updates);
         setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
         showToast(`ยกเลิกเลขพัสดุ ${p.flash_pno} สำเร็จ`);
@@ -1103,7 +1103,7 @@ export default function FlashBackend() {
         alert(`❌ ยกเลิกไม่สำเร็จ\n\nCode: ${result.code}\nMessage: ${result.message || "ไม่มีข้อความ"}\n\nรายละเอียด: ${JSON.stringify(result.data || result, null, 2)}\n\n⚠️ พัสดุอาจถูกรับแล้ว หรือยกเลิกไม่ได้`);
         // ถามว่าต้องการยกเลิกในระบบอย่างเดียวไหม
         if (confirm("ต้องการยกเลิกเฉพาะในระบบหลังบ้านไหม?\n(ไม่ยกเลิกฝั่ง Flash Express)")) {
-          const updates = { status: "cancelled", flash_cancelled_at: new Date().toISOString() };
+          const updates = { status: "cancelled" };
           if (!isDemo) await sb.update("fx_parcels", p.id, updates);
           setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
           showToast(`ยกเลิกในระบบแล้ว (ไม่ได้ยกเลิกฝั่ง Flash)`);
