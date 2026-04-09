@@ -1154,6 +1154,8 @@ export default function FlashBackend() {
   const batchPrint = async () => {
     const targets = parcels.filter(p => selectedIds.has(p.id) && p.flash_pno);
     if (!targets.length) { alert("ไม่มีรายการที่มีเลข Tracking ให้ปริ้น"); return; }
+    if (!confirm(`ปริ้นใบปะหน้า ${targets.length} ใบ?`)) return;
+    setGlobalLoading({ msg: "กำลังเตรียมใบปะหน้า...", progress: 10 });
     const maskPhone = (ph) => (ph || "").replace(/^(\d{3})\d{4}(\d{3})$/, "$1****$2");
     const now = new Date().toLocaleString("en-GB", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
     const win = window.open("", "_blank");
@@ -1255,10 +1257,13 @@ export default function FlashBackend() {
     </body></html>`);
     win.document.close();
     // Mark all as printed
-    for (const p of targets) {
-      if (!isDemo) { try { await sb.update("fx_parcels", p.id, { label_printed: true, status: "printed" }); } catch {} }
+    for (let i = 0; i < targets.length; i++) {
+      setGlobalLoading({ msg: `กำลังอัพเดตสถานะ ${i + 1}/${targets.length}`, progress: Math.round(((i + 1) / targets.length) * 100) });
+      if (!isDemo) { try { await sb.update("fx_parcels", targets[i].id, { label_printed: true, status: "printed" }); } catch {} }
     }
     setParcels(prev => prev.map(x => targets.some(t => t.id === x.id) ? { ...x, label_printed: true, status: "printed" } : x));
+    setGlobalLoading(null);
+    showToast(`ปริ้นสำเร็จ ${targets.length} ใบ`);
     setSelectedIds(new Set());
   };
 
@@ -1522,7 +1527,7 @@ export default function FlashBackend() {
                       <tbody>{paged.map((p, i) => { const d = new Date(p.created_at); return (
                         <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedIds.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
                           {perm.status && <td style={{ padding: "8px", textAlign: "center" }}><input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} style={{ cursor: "pointer" }} /></td>}
-                          <td style={{ padding: "8px", textAlign: "center" }}>{p.flash_pno ? <span style={{ cursor: "pointer", fontSize: 14 }} onClick={() => { setPrintParcel(p); if (!p.label_printed) markPrinted(p); }}>🖨️</span> : <span style={{ color: "#d1d5db" }}>—</span>}</td>
+                          <td style={{ padding: "8px", textAlign: "center" }}>{p.flash_pno ? <span style={{ cursor: "pointer", fontSize: 14, color: p.status === "printed" ? "#059669" : "#64748b" }} onClick={() => { if (!confirm(`ปริ้นใบปะหน้า?\n\n${p.receiver_name}\n${p.flash_pno}`)) return; setPrintParcel(p); markPrinted(p); }}>{p.status === "printed" ? "🟢" : "🖨️"}</span> : <span style={{ color: "#e5e7eb" }}>—</span>}</td>
                           <td style={{ padding: "8px 10px", fontSize: 12, whiteSpace: "nowrap" }}>{d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</td>
                           <td style={{ padding: "8px 10px", fontSize: 12, whiteSpace: "nowrap", color: "#64748b" }}>{d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} น.</td>
                           <td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => setViewParcel(p)}>{p.receiver_name}</td>
