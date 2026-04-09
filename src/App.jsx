@@ -1425,14 +1425,12 @@ export default function FlashBackend() {
         <div style={{ padding: activePage === "parcels" ? "0" : "24px" }}>
           {/* ═══ PARCELS PAGE ═══ */}
           {activePage === "parcels" && (<>
+            {/* STATUS TABS */}
+            <div style={{ borderBottom: "2px solid #e2e8f0", overflowX: "auto", display: "flex" }}>
+              {STATUS_TABS.map(s => { const cnt = s.key === "ALL" ? statsData.length : statsData.filter(p => p.status === s.key).length; const active = statusFilter === s.key; return <button key={s.key} onClick={() => { setStatusFilter(s.key); setPage(0); }} style={{ padding: "12px 18px", border: "none", borderBottom: active ? `3px solid ${s.color}` : "3px solid transparent", background: "transparent", color: active ? s.color : "#64748b", fontSize: 13, fontWeight: active ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}><span>{s.icon}</span>{s.label}{cnt > 0 && <span style={{ background: active ? s.color : "#e2e8f0", color: active ? "#fff" : "#64748b", padding: "1px 7px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{cnt}</span>}</button>; })}
+            </div>
             {/* STATS */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, padding: "16px 24px" }}>
-              {/* Status Tabs */}
-              <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e2e8f0", overflowX: "auto" }}>
-                {STATUS_TABS.map(s => { const cnt = s.key === "ALL" ? statsData.length : statsData.filter(p => p.status === s.key).length; const active = statusFilter === s.key; return <button key={s.key} onClick={() => { setStatusFilter(s.key); setPage(0); }} style={{ padding: "12px 18px", border: "none", borderBottom: active ? `3px solid ${s.color}` : "3px solid transparent", background: "transparent", color: active ? s.color : "#64748b", fontSize: 13, fontWeight: active ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}><span>{s.icon}</span>{s.label}{cnt > 0 && <span style={{ background: active ? s.color : "#e2e8f0", color: active ? "#fff" : "#64748b", padding: "1px 7px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{cnt}</span>}</button>; })}
-              </div>
-              {/* Stats */}
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${perm.viewCOD ? 4 : 3}, 1fr)`, gap: 12, padding: "12px 16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${perm.viewCOD ? 4 : 3}, 1fr)`, gap: 12, padding: "12px 24px" }}>
               {[{ l: "ทั้งหมด", v: stats.total, c: "#6366f1", i: "📋" }, { l: "เตรียมส่ง", v: stats.draft, c: "#f59e0b", i: "📝" }, { l: "สร้างเลขแล้ว", v: stats.created, c: "#059669", i: "✅" }, ...(perm.viewCOD ? [{ l: "COD รวม", v: `฿${stats.codTotal.toLocaleString()}`, c: "#7c3aed", i: "💰" }] : [])].map((s, i) => <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: "1px solid #e2e8f0" }}><div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>{s.i} {s.l}</div><div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div></div>)}
             </div>
 
@@ -1467,7 +1465,7 @@ export default function FlashBackend() {
                           <td style={{ padding: "8px 10px", fontSize: 12, whiteSpace: "nowrap", color: "#64748b" }}>{d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} น.</td>
                           <td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => setViewParcel(p)}>{p.receiver_name}</td>
                           <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
-                          <td style={{ padding: "8px 10px" }}>{(() => { const st = STATUS_TABS.find(s => s.key === p.status) || STATUS_TABS[1]; return <span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: st.color + "18", color: st.color }}>{st.icon} {st.label}</span>; })()}</td>
+                          <td style={{ padding: "8px 10px" }}><span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: p.status === "created" ? "#ecfdf5" : p.status === "ready" ? "#e0f2fe" : "#fef3c7", color: p.status === "created" ? "#059669" : p.status === "ready" ? "#0ea5e9" : "#f59e0b" }}>{p.status === "created" ? "✅ สร้างเลขแล้ว" : p.status === "ready" ? "📦 พร้อมส่ง" : "📝 เตรียมส่ง"}</span></td>
                           <td style={{ padding: "8px 10px" }}>{p.flash_pno ? <span style={{ color: "#0ea5e9", fontWeight: 600, fontSize: 12 }}>{p.flash_pno} {p.flash_sort_code ? "📋" : ""}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}</td>
                           {perm.viewCOD && <td style={{ padding: "8px 10px", fontWeight: 700, fontSize: 13 }}>{p.cod_enabled ? <span style={{ color: "#000" }}>{Number(p.cod_amount || 0).toLocaleString()}</span> : ""}</td>}
                           <td style={{ padding: "8px 10px", fontSize: 11, fontWeight: 600 }}>{p.sender_name || "—"}</td>
