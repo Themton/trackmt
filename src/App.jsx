@@ -390,7 +390,10 @@ function PrintLabel({ parcel, onClose }) {
     script.src = "https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js";
     script.onload = () => {
       const canvas = document.createElement("canvas");
-      try { window.JsBarcode(canvas, parcel.flash_pno, { format: "CODE128", width: 3, height: 80, displayValue: false, margin: 0 }); setBarcodeUrl(canvas.toDataURL("image/png")); } catch {}
+      try {
+        window.JsBarcode(canvas, parcel.flash_pno, { format: "CODE128", width: 2, height: 100, displayValue: false, margin: 4, background: "#ffffff" });
+        setBarcodeUrl(canvas.toDataURL("image/png"));
+      } catch {}
     };
     document.head.appendChild(script);
     return () => { try { document.head.removeChild(script); } catch {} };
@@ -398,57 +401,64 @@ function PrintLabel({ parcel, onClose }) {
 
   const handlePrint = () => {
     const win = window.open("", "_blank");
-    win.document.write(`<!DOCTYPE html><html><head><style>@page{size:100mm 75mm;margin:0}*{margin:0;padding:0;box-sizing:border-box}body{width:100mm;height:75mm;font-family:'Sarabun',sans-serif}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>${ref.current.innerHTML}<script>var imgs=document.querySelectorAll('img'),loaded=0,total=imgs.length;if(!total)window.print();else{imgs.forEach(function(img){if(img.complete){loaded++;if(loaded>=total)window.print();}else{img.onload=img.onerror=function(){loaded++;if(loaded>=total)window.print();};}});setTimeout(function(){window.print();},5000);}</script></body></html>`);
+    win.document.write(`<!DOCTYPE html><html><head>
+      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+      <style>@page{size:100mm 75mm;margin:0}*{margin:0;padding:0;box-sizing:border-box}body{width:100mm;height:75mm;font-family:'IBM Plex Sans Thai',sans-serif}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style>
+    </head><body>${ref.current.innerHTML}
+      <script>var imgs=document.querySelectorAll('img'),loaded=0,total=imgs.length;if(!total)window.print();else{imgs.forEach(function(img){if(img.complete){loaded++;if(loaded>=total)window.print();}else{img.onload=img.onerror=function(){loaded++;if(loaded>=total)window.print();};}});setTimeout(function(){window.print();},5000);}</script>
+    </body></html>`);
     win.document.close();
   };
 
   const pno = parcel.flash_pno || "";
   const sc = parcel.flash_sort_code || "";
+  const maskPhone = (ph) => (ph || "").replace(/^(\d{3})\d{4}(\d{3})$/, "$1****$2");
+  const now = new Date().toLocaleString("en-GB", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 24, maxWidth: 480, width: "95%" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🖨️ ใบปะหน้า</h3><button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>✕</button></div>
         <div ref={ref} style={{ border: "1px solid #ccc" }}>
-          <div style={{ width: "100mm", height: "75mm", fontFamily: "'Sarabun',sans-serif", border: "0.3mm solid #000", overflow: "hidden", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
-            {/* Sort Code — ด้านบนสุด */}
-            <div style={{ background: "#333", color: "#fff", display: "flex", alignItems: "center" }}>
-              <div style={{ background: "#e67e22", color: "#fff", fontSize: "11pt", fontWeight: 900, padding: "1.5mm 3mm", minWidth: "8mm", textAlign: "center" }}>1</div>
-              <div style={{ flex: 1, textAlign: "center", fontSize: "16pt", fontWeight: 900, padding: "1mm 2mm", letterSpacing: "1px" }}>{sc || "FLASH EXPRESS"}</div>
+          <div style={{ width: "100mm", height: "75mm", fontFamily: "'IBM Plex Sans Thai',sans-serif", border: "0.5mm solid #000", overflow: "hidden", boxSizing: "border-box", display: "flex", flexDirection: "column", background: "#fff" }}>
+            {/* Row1: Sort Code */}
+            <div style={{ background: "#333", color: "#fff", display: "flex", alignItems: "stretch", minHeight: "7mm" }}>
+              <div style={{ background: "#e67e22", color: "#fff", fontSize: "14pt", fontWeight: 900, padding: "0 3mm", display: "flex", alignItems: "center", justifyContent: "center", minWidth: "9mm" }}>1</div>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18pt", fontWeight: 900, letterSpacing: "1px" }}>{sc || "FLASH EXPRESS"}</div>
             </div>
-            {/* Barcode — เต็มความกว้าง */}
-            {pno && <div style={{ textAlign: "center", padding: "2mm 4mm 1mm" }}>
-              {barcodeUrl ? <img src={barcodeUrl} style={{ width: "88mm", height: "14mm", display: "block", margin: "0 auto" }} alt="" /> : <div style={{ height: "14mm" }} />}
-            </div>}
-            {/* Tracking Number */}
-            <div style={{ background: "#f3f4f6", textAlign: "center", fontSize: "13pt", fontWeight: 900, fontFamily: "monospace", letterSpacing: "2px", padding: "1mm", borderTop: "0.5mm solid #ccc", borderBottom: "0.5mm solid #ccc" }}>{pno || "—"}</div>
-            {/* DST */}
-            <div style={{ background: "#555", color: "#fff", fontSize: "8pt", fontWeight: 700, padding: "1mm 3mm" }}><b>DST</b> &nbsp; {parcel.receiver_district || ""} — {parcel.receiver_province || ""}</div>
-            {/* ผู้ส่ง */}
-            <div style={{ fontSize: "6pt", color: "#666", padding: "1mm 3mm", borderBottom: "0.3mm solid #ddd" }}>ผู้ส่ง {parcel.sender_name} {parcel.sender_phone} {parcel.sender_address} {parcel.sender_province} {parcel.sender_postal}</div>
-            {/* ผู้รับ + QR */}
-            <div style={{ display: "flex", flex: 1, padding: "1mm 3mm" }}>
+            {/* Row2: Barcode */}
+            <div style={{ textAlign: "center", padding: "2mm 3mm 0", height: "16mm" }}>
+              {pno && barcodeUrl ? <img src={barcodeUrl} style={{ width: "92mm", height: "15mm" }} alt="" /> : <div style={{ height: "15mm" }} />}
+            </div>
+            {/* Row3: Tracking Number */}
+            <div style={{ background: "#f0f0f0", textAlign: "center", fontSize: "14pt", fontWeight: 900, fontFamily: "'Courier New',monospace", letterSpacing: "2px", padding: "1mm 0", borderTop: "0.5mm solid #bbb", borderBottom: "0.5mm solid #bbb" }}>{pno || "—"}</div>
+            {/* Row4: DST */}
+            <div style={{ background: "#666", color: "#fff", fontSize: "9pt", fontWeight: 700, padding: "0.8mm 3mm" }}><span style={{ fontWeight: 900 }}>DST</span> &nbsp;&nbsp; {parcel.receiver_district || ""} — {parcel.receiver_province || ""}</div>
+            {/* Row5: Sender */}
+            <div style={{ fontSize: "6.5pt", color: "#555", padding: "0.8mm 3mm", borderBottom: "0.3mm solid #ddd" }}>ผู้ส่ง {parcel.sender_name} {parcel.sender_phone} {parcel.sender_address || ""} {parcel.sender_province || ""} {parcel.sender_postal || ""}</div>
+            {/* Row6: Receiver + QR */}
+            <div style={{ display: "flex", flex: 1, padding: "1mm 3mm", gap: "2mm" }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "9pt", fontWeight: 800 }}>ผู้รับ {parcel.receiver_name}</div>
-                <div style={{ fontSize: "13pt", fontWeight: 900, fontFamily: "monospace" }}>{(parcel.receiver_phone || "").replace(/^(\d{3})\d{4}(\d{3})$/, "$1****$2")}</div>
-                <div style={{ fontSize: "7pt", lineHeight: 1.4, marginTop: "1mm" }}>
-                  {parcel.receiver_address}<br/>
+                <div style={{ fontSize: "10pt", fontWeight: 800 }}>ผู้รับ {parcel.receiver_name}</div>
+                <div style={{ fontSize: "15pt", fontWeight: 900, fontFamily: "'Courier New',monospace", lineHeight: 1.2 }}>{maskPhone(parcel.receiver_phone)}</div>
+                <div style={{ fontSize: "7.5pt", lineHeight: 1.4, marginTop: "0.5mm" }}>
+                  {parcel.receiver_address || ""}<br/>
                   {parcel.receiver_subdistrict}{parcel.receiver_subdistrict ? ", " : ""}{parcel.receiver_district}<br/>
                   {parcel.receiver_province} {parcel.receiver_postal}
                 </div>
               </div>
-              {pno && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${pno}&margin=0`} style={{ width: "18mm", height: "18mm", alignSelf: "center" }} alt="" />}
+              {pno && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${pno}&margin=0`} style={{ width: "20mm", height: "20mm", alignSelf: "center" }} alt="" />}
             </div>
-            {/* COD */}
+            {/* Row7: COD */}
             {parcel.cod_enabled && <div style={{ background: "#000", display: "flex", alignItems: "center", padding: "1.5mm 3mm", gap: "3mm" }}>
-              <span style={{ background: "#fff", color: "#000", fontSize: "7pt", fontWeight: 900, padding: "0.5mm 2mm" }}>COD</span>
-              <span style={{ color: "#fff", fontSize: "14pt", fontWeight: 900 }}>เก็บเงินค่าสินค้า COD {Number(parcel.cod_amount || 0).toLocaleString()}</span>
+              <span style={{ background: "#fff", color: "#000", fontSize: "8pt", fontWeight: 900, padding: "0.8mm 2.5mm" }}>COD</span>
+              <span style={{ color: "#fff", fontSize: "15pt", fontWeight: 900 }}>เก็บเงินค่าสินค้า COD {Number(parcel.cod_amount || 0).toLocaleString()}</span>
             </div>}
-            {/* Note */}
-            {parcel.remark && <div style={{ fontSize: "8pt", fontWeight: 700, padding: "1mm 3mm", borderTop: "0.3mm solid #999", background: "#f9f9f9" }}><b>Note:</b> {parcel.remark}</div>}
-            {/* Footer */}
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "5pt", color: "#999", padding: "0.5mm 3mm", borderTop: "0.3mm solid #ddd", marginTop: "auto" }}>
-              <span>Print-: {new Date().toLocaleString("en-GB", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+            {/* Row8: Note */}
+            {parcel.remark && <div style={{ fontSize: "9pt", fontWeight: 700, padding: "1mm 3mm", borderTop: "0.3mm solid #999", background: "#f9f9f9" }}>Note: {parcel.remark}</div>}
+            {/* Row9: Footer */}
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "6pt", color: "#999", padding: "0.5mm 3mm", borderTop: "0.3mm solid #ddd", marginTop: "auto" }}>
+              <span>Print-: {now}</span>
               <span>1/1</span>
               <span>THE MT</span>
             </div>
