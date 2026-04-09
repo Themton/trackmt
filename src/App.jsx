@@ -1027,7 +1027,6 @@ export default function FlashBackend() {
   }, [isDemo, demoData]);
 
   useEffect(() => { if (user) loadParcels(); }, [user, loadParcels]);
-  useEffect(() => { if (!user || isDemo) return; const unsub = sb.realtime("fx_parcels", () => loadParcels()); return unsub; }, [user, isDemo, loadParcels]);
 
   // Load shops
   const loadShops = useCallback(async () => {
