@@ -1046,7 +1046,15 @@ export default function FlashBackend() {
   const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); setParcels(prev => prev.filter(x => x.id !== p.id)); showToast("ลบสำเร็จ"); } catch (e) { alert(e.message); } };
   const markPrinted = async (p) => {
     setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: true, status: "printed" } : x));
-    if (!isDemo) { try { await sb.update("fx_parcels", p.id, { label_printed: true, label_printed_at: new Date().toISOString(), status: "printed" }); } catch {} }
+    if (!isDemo) {
+      try {
+        await sb.update("fx_parcels", p.id, { label_printed: true, status: "printed" });
+        console.log("markPrinted OK:", p.id);
+      } catch (e) {
+        console.error("markPrinted FAILED:", e.message);
+        alert("บันทึกสถานะปริ้นไม่ได้: " + e.message);
+      }
+    }
   };
 
   // สร้างเลข Tracking Flash Express
@@ -1260,7 +1268,7 @@ export default function FlashBackend() {
     // Mark all as printed
     for (let i = 0; i < targets.length; i++) {
       setGlobalLoading({ msg: `กำลังอัพเดตสถานะ ${i + 1}/${targets.length}`, progress: Math.round(((i + 1) / targets.length) * 100) });
-      if (!isDemo) { try { await sb.update("fx_parcels", targets[i].id, { label_printed: true, status: "printed" }); } catch {} }
+      if (!isDemo) { try { await sb.update("fx_parcels", targets[i].id, { label_printed: true, status: "printed" }); } catch (e) { console.error("batch markPrinted FAILED:", targets[i].id, e.message); } }
     }
     setParcels(prev => prev.map(x => targets.some(t => t.id === x.id) ? { ...x, label_printed: true, status: "printed" } : x));
     setGlobalLoading(null);
