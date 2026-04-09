@@ -1079,6 +1079,44 @@ export default function FlashBackend() {
   const toggleSelect = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleSelectAll = () => { const ids = paged.map(p => p.id); const allSel = ids.every(id => selectedIds.has(id)); setSelectedIds(prev => { const n = new Set(prev); ids.forEach(id => allSel ? n.delete(id) : n.add(id)); return n; }); };
 
+  const batchPrint = () => {
+    const targets = parcels.filter(p => selectedIds.has(p.id) && p.flash_pno);
+    if (!targets.length) { alert("ไม่มีรายการที่มีเลข Tracking ให้ปริ้น"); return; }
+    const maskPhone = (ph) => (ph || "").replace(/^(\d{3})\d{4}(\d{3})$/, "$1****$2");
+    const win = window.open("", "_blank");
+    const labels = targets.map((p, idx) => {
+      const sc = p.flash_sort_code || "";
+      const pno = p.flash_pno;
+      return `
+      <div style="width:100mm;height:75mm;font-family:'Sarabun',sans-serif;border:0.3mm solid #000;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;page-break-after:always">
+        <div style="background:#333;color:#fff;display:flex;align-items:center">
+          ${sc ? `<div style="background:#e67e22;color:#fff;font-size:8pt;font-weight:900;padding:1mm 2mm;min-width:6mm;text-align:center">⚡</div>` : ""}
+          <div style="flex:1;text-align:center;font-size:${sc ? "16pt" : "10pt"};font-weight:900;padding:0.5mm 2mm;letter-spacing:1px">${sc || "FLASH EXPRESS"}</div>
+        </div>
+        <div style="text-align:center;padding:1mm 3mm 0"><img src="https://barcodeapi.org/api/128/${pno}?height=80" style="width:90mm;height:11mm" /></div>
+        <div style="background:#f5f5f5;text-align:center;font-size:11pt;font-weight:900;font-family:monospace;letter-spacing:1.5px;padding:0.5mm;border-top:0.3mm solid #ccc;border-bottom:0.3mm solid #ccc">${pno}</div>
+        <div style="background:#555;color:#fff;font-size:7pt;font-weight:700;padding:0.5mm 2mm">DST &nbsp; ${p.receiver_district || ""} — ${p.receiver_province || ""}</div>
+        <div style="font-size:5.5pt;color:#666;padding:0.5mm 2mm;border-bottom:0.2mm solid #ddd">ผู้ส่ง ${p.sender_name} ${p.sender_phone} ${p.sender_address || ""} ${p.sender_province || ""} ${p.sender_postal || ""}</div>
+        <div style="display:flex;flex:1;padding:0.5mm 2mm">
+          <div style="flex:1">
+            <div style="font-size:8pt;font-weight:800">ผู้รับ ${p.receiver_name}</div>
+            <div style="font-size:11pt;font-weight:900;font-family:monospace">${maskPhone(p.receiver_phone)}</div>
+            <div style="font-size:6pt;line-height:1.3;margin-top:0.5mm">${p.receiver_address || ""}<br/>${p.receiver_subdistrict || ""}${p.receiver_subdistrict ? ", " : ""}${p.receiver_district || ""}<br/>${p.receiver_province || ""} ${p.receiver_postal || ""}</div>
+          </div>
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${pno}&margin=0" style="width:16mm;height:16mm;align-self:center" />
+        </div>
+        ${p.cod_enabled ? `<div style="background:#000;display:flex;align-items:center;padding:0.8mm 2mm"><span style="background:#fff;color:#000;font-size:6pt;font-weight:900;padding:0.3mm 1.5mm;margin-right:2mm">COD</span><span style="color:#fff;font-size:12pt;font-weight:900">เก็บเงินค่าสินค้า COD ${Number(p.cod_amount || 0).toLocaleString()}</span></div>` : ""}
+        ${p.remark ? `<div style="font-size:7pt;font-weight:700;padding:0.5mm 2mm;border-top:0.2mm solid #999;background:#f9f9f9">Note: ${p.remark}</div>` : ""}
+        <div style="display:flex;justify-content:space-between;font-size:4.5pt;color:#999;padding:0.3mm 2mm;border-top:0.2mm solid #ddd;margin-top:auto"><span>${idx + 1}/${targets.length}</span><span>${p.weight || 1}kg</span></div>
+      </div>`;
+    }).join("\n");
+
+    win.document.write(`<!DOCTYPE html><html><head><style>@page{size:100mm 75mm;margin:0}*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Sarabun',sans-serif}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>${labels}</body></html>`);
+    win.document.close();
+    setTimeout(() => { win.print(); }, 800);
+    setSelectedIds(new Set());
+  };
+
   const batchDelete = async () => {
     const targets = parcels.filter(p => selectedIds.has(p.id));
     if (!targets.length) return;
@@ -1319,6 +1357,7 @@ export default function FlashBackend() {
                   <div style={{ padding: "10px 16px", background: "linear-gradient(135deg,#eef2ff,#faf5ff)", borderBottom: "1px solid #c7d2fe", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#4f46e5" }}>✓ เลือก {selectedIds.size} รายการ</span>
                     <button onClick={batchCreateFlash} disabled={!!batchProgress} style={{ padding: "7px 16px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚡ สร้างเลข Tracking ({parcels.filter(p => selectedIds.has(p.id) && !p.flash_pno).length})</button>
+                    <button onClick={batchPrint} style={{ padding: "7px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🖨️ ปริ้น ({parcels.filter(p => selectedIds.has(p.id) && p.flash_pno).length})</button>
                     {perm.delete && <button onClick={batchDelete} style={{ padding: "7px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🗑️ ลบ ({selectedIds.size})</button>}
                     <button onClick={() => setSelectedIds(new Set())} style={{ padding: "7px 14px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
                     {batchProgress && <div style={{ flex: 1, minWidth: 150 }}><div style={{ fontSize: 11, color: "#6366f1", marginBottom: 3 }}>กำลังสร้าง... {batchProgress.done}/{batchProgress.total}</div><div style={{ width: "100%", height: 6, background: "#e2e8f0", borderRadius: 3 }}><div style={{ width: `${(batchProgress.done / batchProgress.total) * 100}%`, height: "100%", background: "#6366f1", borderRadius: 3, transition: ".3s" }} /></div></div>}
