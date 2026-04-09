@@ -370,8 +370,8 @@ function PrintLabel({ parcel, onClose }) {
 
   const handlePrint = () => {
     const win = window.open("", "_blank");
-    win.document.write(`<!DOCTYPE html><html><head><style>@page{size:100mm 75mm;margin:0}*{margin:0;padding:0;box-sizing:border-box}body{width:100mm;height:75mm;font-family:'Sarabun',sans-serif}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>${ref.current.innerHTML}</body></html>`);
-    win.document.close(); setTimeout(() => { win.print(); win.close(); }, 600);
+    win.document.write(`<!DOCTYPE html><html><head><style>@page{size:100mm 75mm;margin:0}*{margin:0;padding:0;box-sizing:border-box}body{width:100mm;height:75mm;font-family:'Sarabun',sans-serif}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>${ref.current.innerHTML}<script>var imgs=document.querySelectorAll('img'),loaded=0,total=imgs.length;if(!total)window.print();else{imgs.forEach(function(img){if(img.complete){loaded++;if(loaded>=total)window.print();}else{img.onload=img.onerror=function(){loaded++;if(loaded>=total)window.print();};}});setTimeout(function(){window.print();},5000);}</script></body></html>`);
+    win.document.close();
   };
 
   const pno = parcel.flash_pno || "";
@@ -1111,9 +1111,28 @@ export default function FlashBackend() {
       </div>`;
     }).join("\n");
 
-    win.document.write(`<!DOCTYPE html><html><head><style>@page{size:100mm 75mm;margin:0}*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Sarabun',sans-serif}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>${labels}</body></html>`);
+    win.document.write(`<!DOCTYPE html><html><head><style>@page{size:100mm 75mm;margin:0}*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Sarabun',sans-serif}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.loading-msg{display:none}}</style></head><body>
+      <div class="loading-msg" style="position:fixed;top:0;left:0;right:0;padding:12px;background:#fef3c7;text-align:center;font-size:14px;font-weight:700;z-index:999">⏳ กำลังโหลดบาร์โค้ด + QR Code... รอสักครู่</div>
+      ${labels}
+      <script>
+        function waitAndPrint() {
+          var imgs = document.querySelectorAll('img');
+          var loaded = 0;
+          var total = imgs.length;
+          if (total === 0) { window.print(); return; }
+          imgs.forEach(function(img) {
+            if (img.complete) { loaded++; if(loaded>=total) window.print(); }
+            else {
+              img.onload = function() { loaded++; if(loaded>=total) window.print(); };
+              img.onerror = function() { loaded++; if(loaded>=total) window.print(); };
+            }
+          });
+          setTimeout(function() { window.print(); }, 5000);
+        }
+        waitAndPrint();
+      </script>
+    </body></html>`);
     win.document.close();
-    setTimeout(() => { win.print(); }, 800);
     setSelectedIds(new Set());
   };
 
