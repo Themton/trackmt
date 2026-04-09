@@ -956,6 +956,7 @@ export default function FlashBackend() {
   const [parcels, setParcels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [showForm, setShowForm] = useState(false);
   const [editParcel, setEditParcel] = useState(null);
   const [printParcel, setPrintParcel] = useState(null);
@@ -991,17 +992,25 @@ export default function FlashBackend() {
   }, [isDemo]);
   useEffect(() => { if (user) loadShops(); }, [user, loadShops]);
 
+  const STATUS_TABS = [
+    { key: "ALL", label: "ทั้งหมด", icon: "📋", color: "#475569" },
+    { key: "draft", label: "เตรียมส่ง", icon: "📝", color: "#f59e0b" },
+    { key: "ready", label: "พร้อมส่ง", icon: "📦", color: "#0ea5e9" },
+    { key: "created", label: "สร้างเลขพัสดุแล้ว", icon: "✅", color: "#059669" },
+  ];
+
   const filtered = useMemo(() => {
     let list = parcels;
     if (selectedShopFilter) list = list.filter(p => p.shop_id === selectedShopFilter);
+    if (statusFilter !== "ALL") list = list.filter(p => p.status === statusFilter);
     if (search) { const q = search.toLowerCase(); list = list.filter(p => [p.parcel_no, p.receiver_name, p.receiver_phone, p.flash_pno, p.receiver_province, p.created_by_name].some(v => (v || "").toLowerCase().includes(q))); }
     return list;
-  }, [parcels, search, selectedShopFilter]);
+  }, [parcels, search, selectedShopFilter, statusFilter]);
 
   const paged = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const statsData = useMemo(() => { const list = selectedShopFilter ? parcels.filter(p => p.shop_id === selectedShopFilter) : parcels; return list; }, [parcels, selectedShopFilter]);
-  const stats = useMemo(() => ({ total: statsData.length, withTracking: statsData.filter(p => p.flash_pno).length, noTracking: statsData.filter(p => !p.flash_pno).length, codTotal: statsData.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [statsData]);
+  const stats = useMemo(() => ({ total: statsData.length, draft: statsData.filter(p => p.status === "draft").length, ready: statsData.filter(p => p.status === "ready").length, created: statsData.filter(p => p.status === "created").length, codTotal: statsData.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [statsData]);
 
   const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); setParcels(prev => prev.filter(x => x.id !== p.id)); showToast("ลบสำเร็จ"); } catch (e) { alert(e.message); } };
   const markPrinted = async (p) => {
@@ -1418,7 +1427,13 @@ export default function FlashBackend() {
           {activePage === "parcels" && (<>
             {/* STATS */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 10, padding: "16px 24px" }}>
-              {[{ l: "ทั้งหมด", v: stats.total, c: "#6366f1", i: "📦" }, { l: "มี Tracking", v: stats.withTracking, c: "#059669", i: "✅" }, { l: "ยังไม่มี Tracking", v: stats.noTracking, c: "#f59e0b", i: "⏳" }, ...(perm.viewCOD ? [{ l: "COD รวม", v: `฿${stats.codTotal.toLocaleString()}`, c: "#7c3aed", i: "💰" }] : [])].map((s, i) => <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: "1px solid #e2e8f0" }}><div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>{s.i} {s.l}</div><div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div></div>)}
+              {/* Status Tabs */}
+              <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e2e8f0", overflowX: "auto" }}>
+                {STATUS_TABS.map(s => { const cnt = s.key === "ALL" ? statsData.length : statsData.filter(p => p.status === s.key).length; const active = statusFilter === s.key; return <button key={s.key} onClick={() => { setStatusFilter(s.key); setPage(0); }} style={{ padding: "12px 18px", border: "none", borderBottom: active ? `3px solid ${s.color}` : "3px solid transparent", background: "transparent", color: active ? s.color : "#64748b", fontSize: 13, fontWeight: active ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}><span>{s.icon}</span>{s.label}{cnt > 0 && <span style={{ background: active ? s.color : "#e2e8f0", color: active ? "#fff" : "#64748b", padding: "1px 7px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{cnt}</span>}</button>; })}
+              </div>
+              {/* Stats */}
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${perm.viewCOD ? 4 : 3}, 1fr)`, gap: 12, padding: "12px 16px" }}>
+              {[{ l: "ทั้งหมด", v: stats.total, c: "#6366f1", i: "📋" }, { l: "เตรียมส่ง", v: stats.draft, c: "#f59e0b", i: "📝" }, { l: "สร้างเลขแล้ว", v: stats.created, c: "#059669", i: "✅" }, ...(perm.viewCOD ? [{ l: "COD รวม", v: `฿${stats.codTotal.toLocaleString()}`, c: "#7c3aed", i: "💰" }] : [])].map((s, i) => <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: "1px solid #e2e8f0" }}><div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>{s.i} {s.l}</div><div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div></div>)}
             </div>
 
             {/* TABLE */}
@@ -1428,6 +1443,7 @@ export default function FlashBackend() {
                 {selectedIds.size > 0 && perm.status && (
                   <div style={{ padding: "10px 16px", background: "linear-gradient(135deg,#eef2ff,#faf5ff)", borderBottom: "1px solid #c7d2fe", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#4f46e5" }}>✓ เลือก {selectedIds.size} รายการ</span>
+                    <button onClick={async () => { const targets = parcels.filter(p => selectedIds.has(p.id) && p.status === "draft"); if (!targets.length) return; for (const p of targets) { if (!isDemo) await sb.update("fx_parcels", p.id, { status: "ready" }); } setParcels(prev => prev.map(x => selectedIds.has(x.id) && x.status === "draft" ? { ...x, status: "ready" } : x)); showToast(`เปลี่ยนสถานะ ${targets.length} รายการเป็น "พร้อมส่ง"`); }} style={{ padding: "7px 16px", background: "#0ea5e9", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📦 พร้อมส่ง</button>
                     <button onClick={batchCreateFlash} disabled={!!batchProgress} style={{ padding: "7px 16px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚡ สร้างเลข Tracking ({selectedCounts.noTracking})</button>
                     <button onClick={batchPrint} style={{ padding: "7px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🖨️ ปริ้น ({selectedCounts.hasTracking})</button>
                     {perm.delete && <button onClick={batchDelete} style={{ padding: "7px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🗑️ ลบ ({selectedIds.size})</button>}
@@ -1441,7 +1457,7 @@ export default function FlashBackend() {
                       <thead><tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
                         {perm.status && <th style={{ padding: "10px 8px", width: 36 }}><input type="checkbox" checked={paged.length > 0 && paged.every(p => selectedIds.has(p.id))} onChange={toggleSelectAll} style={{ cursor: "pointer" }} /></th>}
                         <th style={{ padding: "10px 8px", width: 30, color: "#64748b", fontSize: 11 }}>🖨️</th>
-                        {["วันที่", "เวลา", "ลูกค้า", "เบอร์โทรศัพท์", "หมายเลขการติดตาม", ...(perm.viewCOD ? ["COD"] : []), "ร้านค้า", "การปฏิบัติ"].map((h, i) => <th key={i} style={{ padding: "10px 10px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>)}
+                        {["วันที่", "เวลา", "ลูกค้า", "เบอร์โทรศัพท์", "สถานะ", "หมายเลขการติดตาม", ...(perm.viewCOD ? ["COD"] : []), "ร้านค้า", "การปฏิบัติ"].map((h, i) => <th key={i} style={{ padding: "10px 10px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>)}
                       </tr></thead>
                       <tbody>{paged.map((p, i) => { const d = new Date(p.created_at); return (
                         <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedIds.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
@@ -1451,10 +1467,12 @@ export default function FlashBackend() {
                           <td style={{ padding: "8px 10px", fontSize: 12, whiteSpace: "nowrap", color: "#64748b" }}>{d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} น.</td>
                           <td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => setViewParcel(p)}>{p.receiver_name}</td>
                           <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
+                          <td style={{ padding: "8px 10px" }}>{(() => { const st = STATUS_TABS.find(s => s.key === p.status) || STATUS_TABS[1]; return <span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: st.color + "18", color: st.color }}>{st.icon} {st.label}</span>; })()}</td>
                           <td style={{ padding: "8px 10px" }}>{p.flash_pno ? <span style={{ color: "#0ea5e9", fontWeight: 600, fontSize: 12 }}>{p.flash_pno} {p.flash_sort_code ? "📋" : ""}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}</td>
                           {perm.viewCOD && <td style={{ padding: "8px 10px", fontWeight: 700, fontSize: 13 }}>{p.cod_enabled ? <span style={{ color: "#000" }}>{Number(p.cod_amount || 0).toLocaleString()}</span> : ""}</td>}
                           <td style={{ padding: "8px 10px", fontSize: 11, fontWeight: 600 }}>{p.sender_name || "—"}</td>
                           <td style={{ padding: "8px 6px" }}><div style={{ display: "flex", gap: 2 }}>
+                            {perm.status && !p.flash_pno && p.status === "draft" && <button title="พร้อมส่ง" onClick={async () => { if (!isDemo) await sb.update("fx_parcels", p.id, { status: "ready" }); setParcels(prev => prev.map(x => x.id === p.id ? { ...x, status: "ready" } : x)); }} style={{ width: 26, height: 26, border: "1px solid #0ea5e9", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>📦</button>}
                             {perm.status && !p.flash_pno && <button title="สร้างเลข" onClick={() => createFlashOrder(p)} disabled={flashLoading === p.id} style={{ width: 26, height: 26, border: "1px solid #fbbf24", borderRadius: 4, background: flashLoading === p.id ? "#fef3c7" : "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{flashLoading === p.id ? "⏳" : "⚡"}</button>}
                             {perm.edit && <button title="แก้ไข" onClick={() => { setEditParcel(p); setShowForm(true); }} style={{ width: 26, height: 26, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</button>}
                             {perm.delete && <button title="ลบ" onClick={() => handleDelete(p)} style={{ width: 26, height: 26, border: "1px solid #fca5a5", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑️</button>}
