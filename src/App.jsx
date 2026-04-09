@@ -213,7 +213,6 @@ function LoginScreen({ onLogin, isDemo }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 40%, #0f172a 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'IBM Plex Sans Thai', -apple-system, sans-serif", padding: 20 }}>
-      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
       <div style={{ width: "100%", maxWidth: 420 }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
           <div style={{ width: 72, height: 72, background: "linear-gradient(135deg,#dc2626,#f97316)", borderRadius: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 36, marginBottom: 16, boxShadow: "0 8px 30px rgba(220,38,38,.3)" }}>⚡</div>
@@ -1066,21 +1065,25 @@ export default function FlashBackend() {
         if (result.code === 1 && result.data) {
           const updates = { flash_pno: result.data.pno || "", flash_sort_code: result.data.sortCode || result.data.dstStoreName || "", flash_api_response: result.data, status: "created" };
           if (!isDemo) await sb.update("fx_parcels", p.id, updates);
+          setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
           success++;
         } else { errors.push(`${p.receiver_name}: ${result.message || "error"}`); }
       } catch (e) { errors.push(`${p.receiver_name}: ${e.message}`); }
-      setBatchProgress({ total: targets.length, done: i + 1, success, errors: [...errors] });
       if (i % 3 === 2) await new Promise(r => setTimeout(r, 500));
     }
     setGlobalLoading(null);
-    showToast(`สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ`);
     setBatchProgress(null);
+    showToast(`สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ`);
     setSelectedIds(new Set());
-    loadParcels();
   };
 
   const toggleSelect = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleSelectAll = () => { const ids = paged.map(p => p.id); const allSel = ids.every(id => selectedIds.has(id)); setSelectedIds(prev => { const n = new Set(prev); ids.forEach(id => allSel ? n.delete(id) : n.add(id)); return n; }); };
+
+  const selectedCounts = useMemo(() => {
+    const sel = parcels.filter(p => selectedIds.has(p.id));
+    return { total: sel.length, noTracking: sel.filter(p => !p.flash_pno).length, hasTracking: sel.filter(p => p.flash_pno).length };
+  }, [parcels, selectedIds]);
 
   const batchPrint = () => {
     const targets = parcels.filter(p => selectedIds.has(p.id) && p.flash_pno);
@@ -1142,17 +1145,17 @@ export default function FlashBackend() {
   const batchDelete = async () => {
     const targets = parcels.filter(p => selectedIds.has(p.id));
     if (!targets.length) return;
-    if (!confirm(`ลบ ${targets.length} รายการ?\n\n${targets.map(p => p.receiver_name + " " + p.receiver_phone).join("\n")}`)) return;
+    if (!confirm(`ลบ ${targets.length} รายการ?`)) return;
     let success = 0;
     for (let i = 0; i < targets.length; i++) {
       setGlobalLoading({ msg: `กำลังลบ ${i + 1}/${targets.length}`, progress: Math.round(((i + 1) / targets.length) * 100) });
       const p = targets[i];
-      try { if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); } else { await sb.delete("fx_parcels", p.id); } success++; } catch {}
+      try { if (!isDemo) await sb.delete("fx_parcels", p.id); success++; } catch {}
     }
+    setParcels(prev => prev.filter(x => !selectedIds.has(x.id)));
     setGlobalLoading(null);
     showToast(`ลบสำเร็จ ${success}/${targets.length} รายการ`);
     setSelectedIds(new Set());
-    loadParcels();
   };
 
   if (!user) return <LoginScreen onLogin={handleLogin} isDemo={isDemo} />;
@@ -1308,7 +1311,6 @@ export default function FlashBackend() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f5f5f0", fontFamily: "'IBM Plex Sans Thai',-apple-system,sans-serif", display: "flex" }}>
-      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 
       {/* ═══ SIDEBAR ═══ */}
       <div style={{ width: 200, background: "#1a1a2e", color: "#fff", display: "flex", flexDirection: "column", position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 100, flexShrink: 0 }}>
@@ -1378,8 +1380,8 @@ export default function FlashBackend() {
                 {selectedIds.size > 0 && perm.status && (
                   <div style={{ padding: "10px 16px", background: "linear-gradient(135deg,#eef2ff,#faf5ff)", borderBottom: "1px solid #c7d2fe", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#4f46e5" }}>✓ เลือก {selectedIds.size} รายการ</span>
-                    <button onClick={batchCreateFlash} disabled={!!batchProgress} style={{ padding: "7px 16px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚡ สร้างเลข Tracking ({parcels.filter(p => selectedIds.has(p.id) && !p.flash_pno).length})</button>
-                    <button onClick={batchPrint} style={{ padding: "7px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🖨️ ปริ้น ({parcels.filter(p => selectedIds.has(p.id) && p.flash_pno).length})</button>
+                    <button onClick={batchCreateFlash} disabled={!!batchProgress} style={{ padding: "7px 16px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚡ สร้างเลข Tracking ({selectedCounts.noTracking})</button>
+                    <button onClick={batchPrint} style={{ padding: "7px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🖨️ ปริ้น ({selectedCounts.hasTracking})</button>
                     {perm.delete && <button onClick={batchDelete} style={{ padding: "7px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🗑️ ลบ ({selectedIds.size})</button>}
                     <button onClick={() => setSelectedIds(new Set())} style={{ padding: "7px 14px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
                     {batchProgress && <div style={{ flex: 1, minWidth: 150 }}><div style={{ fontSize: 11, color: "#6366f1", marginBottom: 3 }}>กำลังสร้าง... {batchProgress.done}/{batchProgress.total}</div><div style={{ width: "100%", height: 6, background: "#e2e8f0", borderRadius: 3 }}><div style={{ width: `${(batchProgress.done / batchProgress.total) * 100}%`, height: "100%", background: "#6366f1", borderRadius: 3, transition: ".3s" }} /></div></div>}
