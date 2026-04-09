@@ -1094,7 +1094,7 @@ export default function FlashBackend() {
       const acc = getFlashAccount(p);
       const result = await flashApi.cancelOrder(p.flash_pno, acc);
       console.log("Flash cancel response:", JSON.stringify(result));
-      if (result.code === 1) {
+      if (result.code === 1 || result.code === 1032) {
         const updates = { status: "cancelled" };
         if (!isDemo) await sb.update("fx_parcels", p.id, updates);
         setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
