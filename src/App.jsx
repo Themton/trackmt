@@ -225,8 +225,9 @@ function LoginScreen({ onLogin, isDemo }) {
         if (u) { onLogin(u); } else { setError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"); }
         setLoading(false); return;
       }
+      const safeUser = username.replace(/[^a-zA-Z0-9_]/g, "");
       const hash = await sha256(password);
-      const users = await sb.select("fx_users", { filters: `username=eq.${username}&password=eq.${hash}&is_active=eq.true` });
+      const users = await sb.select("fx_users", { filters: `username=eq.${safeUser}&password=eq.${hash}&is_active=eq.true` });
       if (users?.length) {
         const user = users[0];
         sb.update("fx_users", user.id, { last_login: new Date().toISOString() }).catch(() => {});
@@ -991,7 +992,7 @@ export default function FlashBackend() {
   const [user, setUser] = useState(() => {
     try { const s = sessionStorage.getItem("fx_user"); return s ? JSON.parse(s) : null; } catch { return null; }
   });
-  const handleLogin = (u) => { setUser(u); try { sessionStorage.setItem("fx_user", JSON.stringify(u)); } catch {} };
+  const handleLogin = (u) => { const safe = { id: u.id, username: u.username, display_name: u.display_name, role: u.role, avatar_color: u.avatar_color }; setUser(safe); try { sessionStorage.setItem("fx_user", JSON.stringify(safe)); } catch {} };
   const handleLogout = () => { setUser(null); setParcels([]); try { sessionStorage.removeItem("fx_user"); } catch {} };
   const [parcels, setParcels] = useState([]);
   const [loading, setLoading] = useState(true);

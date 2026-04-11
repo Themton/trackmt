@@ -5,9 +5,11 @@ const FLASH_TRA = "https://open-api-tra.flashexpress.com";
 
 export default {
   async fetch(req) {
-    const origin = req.headers.get("Origin") || "*";
+    const origin = req.headers.get("Origin") || "";
+    const allowed = ["https://themton.github.io", "http://localhost:5173", "http://localhost:3000"];
+    const corsOrigin = allowed.includes(origin) ? origin : "https://themton.github.io";
     const cors = {
-      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Origin": corsOrigin,
       "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type,apikey,Authorization,Prefer",
     };
