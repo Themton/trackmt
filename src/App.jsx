@@ -11,37 +11,27 @@ const BASE_URL = SUPABASE_URL; // ใช้ Supabase ตรง
 // ═══════════════════════════════════════════════════════════════
 // FLASH EXPRESS API CONFIG
 // ═══════════════════════════════════════════════════════════════
-const FLASH_TRAINING = false;
 const FLASH_ACCOUNTS = [
-  { name: "CBC9351", mchId: "CBC9351", key: "0d0b630e5e245149fe120a062c342b3f41ffaea51597464841e97d324b792334" },
-  { name: "CBF1654", mchId: "CBF1654", key: "976a16aac51569cb55b055c0665fef802d77a8dfad05b277b6fe312985e360e3" },
+  { name: "CBC9351", mchId: "CBC9351" },
+  { name: "CBF1654", mchId: "CBF1654" },
 ];
-const FLASH_DIRECT_URL = FLASH_TRAINING
-  ? "https://open-api-tra.flashexpress.com"
-  : "https://open-api.flashexpress.com";
-const FLASH_API_URL = FLASH_TRAINING
-  ? "https://upabase-proxy.themtja.workers.dev/flash-tra"
-  : "https://upabase-proxy.themtja.workers.dev/flash";
+const WORKER_URL = "https://upabase-proxy.themtja.workers.dev";
 
-// Flash Express API Helper
+// Flash Express API — calls Worker (keys are in Worker, NOT here)
 const flashApi = {
   getAccount(mchId) {
     return FLASH_ACCOUNTS.find(a => a.mchId === mchId) || FLASH_ACCOUNTS[0];
   },
-  async sign(params, apiKey) {
-    const keys = Object.keys(params).filter(k => k !== 'sign' && params[k] !== '' && params[k] !== null && params[k] !== undefined).sort();
-    const stringA = keys.map(k => `${k}=${params[k]}`).join("&");
-    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stringA + "&key=" + apiKey));
-    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+  async callWorker(endpoint, body) {
+    const res = await fetch(`${WORKER_URL}/flash-api/${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return await res.json();
   },
   async ping(account) {
-    const acc = account || FLASH_ACCOUNTS[0];
-    const params = { mchId: acc.mchId, nonceStr: String(Date.now()) };
-    params.sign = await this.sign(params, acc.key);
-    const body = new URLSearchParams(params).toString();
-    const res = await fetch(`${FLASH_API_URL}/open/v1/ping`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
-    const text = await res.text();
-    try { return JSON.parse(text); } catch { return { code: 1, message: text }; }
+    return this.callWorker("ping", { mchId: account?.mchId || "CBC9351" });
   },
   async createOrder(parcel, account) {
     const acc = account || FLASH_ACCOUNTS[0];
@@ -84,51 +74,10 @@ const flashApi = {
     if (parcel.cod_enabled && parcel.cod_amount > 0) {
       params.codAmount = String(Math.round(parcel.cod_amount * 100));
     }
-    console.log("Flash API [" + acc.mchId + "] params:", JSON.stringify(params, null, 2));
-    params.sign = await this.sign(params, acc.key);
-
-    const body = new URLSearchParams(params).toString();
-    console.log("Flash API body:", decodeURIComponent(body));
-    const urls = [
-      `${FLASH_API_URL}/open/v1/orders`,
-      `${FLASH_DIRECT_URL}/open/v1/orders`,
-    ];
-    for (const url of urls) {
-      try {
-        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
-        return await res.json();
-      } catch (e) { console.warn("Flash:", url, e.message); continue; }
-    }
-    throw new Error("ไม่สามารถเชื่อมต่อ Flash API — ตรวจสอบ Cloudflare Worker");
+    return this.callWorker("create", params);
   },
   async cancelOrder(pno, account) {
-    const acc = account || FLASH_ACCOUNTS[0];
-    const params = {
-      mchId: acc.mchId,
-      nonceStr: String(Date.now()) + Math.random().toString(36).substring(2, 8),
-      pno: pno,
-    };
-    params.sign = await this.sign(params, acc.key);
-    const body = new URLSearchParams(params).toString();
-    console.log("Flash cancel params:", JSON.stringify(params, null, 2));
-    const urls = [
-      `${FLASH_API_URL}/open/v1/orders/${pno}/cancel`,
-      `${FLASH_API_URL}/open/v1/orders/cancel`,
-      `${FLASH_DIRECT_URL}/open/v1/orders/${pno}/cancel`,
-      `${FLASH_DIRECT_URL}/open/v1/orders/cancel`,
-    ];
-    for (const url of urls) {
-      try {
-        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
-        const text = await res.text();
-        console.log("Flash cancel [" + url + "] response:", text);
-        try { 
-          const json = JSON.parse(text);
-          if (json.code === 1 || json.message) return json;
-        } catch {}
-      } catch (e) { console.warn("Flash cancel:", url, e.message); continue; }
-    }
-    throw new Error("ไม่สามารถเชื่อมต่อ Flash API cancel");
+    return this.callWorker("cancel", { pno, mchId: account?.mchId || "CBC9351" });
   },
 };
 
