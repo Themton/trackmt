@@ -1317,21 +1317,30 @@ export default function FlashBackend() {
       if (!data.length) { alert("ไม่มีข้อมูลที่จะ Export"); return; }
       setExporting(true);
 
-      const headers = ["เลขพัสดุ","ชื่อผู้รับ","เบอร์ผู้รับ","ที่อยู่","ตำบล","อำเภอ","จังหวัด","รหัสไปรษณีย์","Tracking","Sort Code","สถานะ","COD","ยอด COD","หมายเหตุ","ชื่อผู้ส่ง","เบอร์ผู้ส่ง","ร้านค้า","พนักงานผู้สร้าง","อีเมล","วันที่สร้าง"];
+      // ProShip format (ตรงกับไฟล์ Import) + คอลัมน์เพิ่ม
+      const headers = [
+        "MobileNo* เบอร์มือถือ", "Name ชื่อ", "Address ที่อยู่",
+        "SubDistrict ตำบล", "District อำเภอ", "ZIP รหัส ปณ.",
+        "Customer FB/Line เฟส/ไลน์ลูกค้า", "SalesChannel ช่องทางจำหน่าย",
+        "SalesPerson ชื่อแอดมิน", "SalePrice ราคาขาย",
+        "COD* ยอดเก็บเงินปลายทาง", "Remark หมายเหตุ",
+        "Tracking", "Sort Code", "สถานะ", "ร้านค้า", "วันที่สร้าง",
+      ];
       const statusMap = { draft: "เตรียมส่ง", created: "สร้างเลขแล้ว", printed: "ปริ้นแล้ว", cancelled: "ยกเลิก" };
       const rows = data.map(p => {
         const shop = shops?.find(s => s.id === p.shop_id);
         return [
-          p.parcel_no || "", p.receiver_name, p.receiver_phone, p.receiver_address,
-          p.receiver_subdistrict, p.receiver_district, p.receiver_province, p.receiver_postal,
+          p.receiver_phone || "", p.receiver_name || "", p.receiver_address || "",
+          p.receiver_subdistrict || "", p.receiver_district || "", p.receiver_postal || "",
+          "", // Customer FB/Line
+          p.item_desc || "", // SalesChannel
+          p.created_by_name || "", // SalesPerson = พนักงาน
+          p.cod_amount || 0, // SalePrice
+          p.cod_enabled ? (p.cod_amount || 0) : 0, // COD
+          p.remark || "",
           p.flash_pno || "", p.flash_sort_code || "",
           statusMap[p.status] || p.status || "",
-          p.cod_enabled ? "ใช่" : "ไม่", p.cod_amount || 0,
-          p.remark || "",
-          p.sender_name, p.sender_phone,
           shop?.name || "",
-          p.created_by_name || "",
-          p.created_by_email || "",
           new Date(p.created_at).toLocaleString("th-TH"),
         ];
       });
@@ -1362,10 +1371,13 @@ export default function FlashBackend() {
         URL.revokeObjectURL(url);
       } else {
         const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-        ws["!cols"] = headers.map((_, i) => ({ wch: [0,1,7,8,16,17,18].includes(i) ? 20 : i === 3 ? 30 : 14 }));
+        // Row 1: คำอธิบาย (เหมือนไฟล์ Import)
+        const noteRow = ["ช่องสีแดงต้องกรอก ช่องสีขาวไม่จำเป็น", "", "", "", "", "", "", "", "", "", "", "", "— คอลัมน์เพิ่มจากระบบ —"];
+        const ws = XLSX.utils.aoa_to_sheet([noteRow, headers, ...rows]);
+        // Column widths: MobileNo=14, Name=20, Address=35, SubDist=14, Dist=14, ZIP=8, FB=20, Channel=25, Person=14, Price=10, COD=10, Remark=25, Track=18, Sort=12, Status=12, Shop=16, Date=18
+        ws["!cols"] = [14,20,35,14,14,8,20,25,14,10,10,25,18,12,12,16,18].map(w => ({ wch: w }));
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "ข้อมูลพัสดุ");
+        XLSX.utils.book_append_sheet(wb, ws, "ProShip");
         // Sheet 2: สรุปพนักงาน
         const ws2 = XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]);
         ws2["!cols"] = summaryHeaders.map(() => ({ wch: 18 }));
