@@ -374,42 +374,42 @@ function PrintLabel({ parcel, onClose }) {
         <div ref={ref} style={{ border: "1px solid #ccc" }}>
           <div style={{ width: "100mm", height: "75mm", fontFamily: "'IBM Plex Sans Thai',sans-serif", border: "0.5mm solid #000", overflow: "hidden", boxSizing: "border-box", display: "flex", flexDirection: "column", background: "#fff" }}>
             {/* Row1: Sort Code */}
-            <div style={{ background: "#333", color: "#fff", display: "flex", alignItems: "stretch", minHeight: "7mm" }}>
-              <div style={{ background: "#e67e22", color: "#fff", fontSize: "14pt", fontWeight: 900, padding: "0 3mm", display: "flex", alignItems: "center", justifyContent: "center", minWidth: "9mm" }}>1</div>
+            <div style={{ background: "#333", color: "#fff", display: "flex", alignItems: "stretch", height: "7mm" }}>
+              <div style={{ background: "#e67e22", color: "#fff", fontSize: "13pt", fontWeight: 900, padding: "0 3mm", display: "flex", alignItems: "center", justifyContent: "center", minWidth: "9mm" }}>1</div>
               <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18pt", fontWeight: 900, letterSpacing: "1px" }}>{sc || "FLASH EXPRESS"}</div>
             </div>
             {/* Row2: Barcode */}
-            <div style={{ textAlign: "center", padding: "2mm 3mm 0", height: "16mm" }}>
-              {pno && barcodeUrl ? <img src={barcodeUrl} style={{ width: "92mm", height: "15mm" }} alt="" /> : <div style={{ height: "15mm" }} />}
+            <div style={{ textAlign: "center", padding: "1.5mm 3mm 0.5mm", height: "13mm" }}>
+              {pno && barcodeUrl ? <img src={barcodeUrl} style={{ width: "90mm", height: "12mm" }} alt="" /> : <div style={{ height: "12mm" }} />}
             </div>
             {/* Row3: Tracking Number */}
-            <div style={{ background: "#f0f0f0", textAlign: "center", fontSize: "14pt", fontWeight: 900, fontFamily: "'Courier New',monospace", letterSpacing: "2px", padding: "1mm 0", borderTop: "0.5mm solid #bbb", borderBottom: "0.5mm solid #bbb" }}>{pno || "—"}</div>
+            <div style={{ background: "#f0f0f0", textAlign: "center", fontSize: "13pt", fontWeight: 900, fontFamily: "'Courier New',monospace", letterSpacing: "2px", padding: "1mm 0", borderTop: "0.3mm solid #bbb", borderBottom: "0.3mm solid #bbb" }}>{pno || "—"}</div>
             {/* Row4: DST */}
             <div style={{ background: "#666", color: "#fff", fontSize: "9pt", fontWeight: 700, padding: "0.8mm 3mm" }}><span style={{ fontWeight: 900 }}>DST</span> &nbsp;&nbsp; {parcel.receiver_district || ""} — {parcel.receiver_province || ""}</div>
             {/* Row5: Sender */}
-            <div style={{ fontSize: "6.5pt", color: "#555", padding: "0.8mm 3mm", borderBottom: "0.3mm solid #ddd" }}>ผู้ส่ง {parcel.sender_name} {parcel.sender_phone} {parcel.sender_address || ""} {parcel.sender_province || ""} {parcel.sender_postal || ""}</div>
+            <div style={{ fontSize: "6.5pt", color: "#555", padding: "0.5mm 3mm", borderBottom: "0.3mm solid #ddd", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>ผู้ส่ง {parcel.sender_name} {parcel.sender_phone} {parcel.sender_address || ""}</div>
             {/* Row6: Receiver + QR */}
-            <div style={{ display: "flex", flex: 1, padding: "1mm 3mm", gap: "2mm" }}>
-              <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", flex: 1, padding: "1mm 3mm", gap: "2mm", minHeight: 0, overflow: "hidden" }}>
+              <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                 <div style={{ fontSize: "10pt", fontWeight: 800 }}>ผู้รับ {parcel.receiver_name}</div>
-                <div style={{ fontSize: "15pt", fontWeight: 900, fontFamily: "'Courier New',monospace", lineHeight: 1.2 }}>{maskPhone(parcel.receiver_phone)}</div>
-                <div style={{ fontSize: "7.5pt", lineHeight: 1.4, marginTop: "0.5mm" }}>
+                <div style={{ fontSize: "14pt", fontWeight: 900, fontFamily: "'Courier New',monospace", lineHeight: 1.1 }}>{maskPhone(parcel.receiver_phone)}</div>
+                <div style={{ fontSize: "7.5pt", lineHeight: 1.3, marginTop: "0.5mm", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}>
                   {parcel.receiver_address || ""}<br/>
                   {parcel.receiver_subdistrict}{parcel.receiver_subdistrict ? ", " : ""}{parcel.receiver_district}<br/>
                   {parcel.receiver_province} {parcel.receiver_postal}
                 </div>
               </div>
-              {pno && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${pno}&margin=0`} style={{ width: "20mm", height: "20mm", alignSelf: "center" }} alt="" />}
+              {pno && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${pno}&margin=0`} style={{ width: "18mm", height: "18mm", alignSelf: "center", flexShrink: 0 }} alt="" />}
             </div>
             {/* Row7: COD */}
-            {parcel.cod_enabled && <div style={{ background: "#000", display: "flex", alignItems: "center", padding: "1.5mm 3mm", gap: "3mm" }}>
-              <span style={{ background: "#fff", color: "#000", fontSize: "8pt", fontWeight: 900, padding: "0.8mm 2.5mm" }}>COD</span>
-              <span style={{ color: "#fff", fontSize: "15pt", fontWeight: 900 }}>เก็บเงินค่าสินค้า COD {Number(parcel.cod_amount || 0).toLocaleString()}</span>
+            {parcel.cod_enabled && <div style={{ background: "#000", display: "flex", alignItems: "center", padding: "1.2mm 3mm", gap: "3mm" }}>
+              <span style={{ background: "#fff", color: "#000", fontSize: "7pt", fontWeight: 900, padding: "0.8mm 2.5mm" }}>COD</span>
+              <span style={{ color: "#fff", fontSize: "13pt", fontWeight: 900 }}>เก็บเงินค่าสินค้า COD {Number(parcel.cod_amount || 0).toLocaleString()}</span>
             </div>}
             {/* Row8: Note */}
-            {parcel.remark && <div style={{ fontSize: "9pt", fontWeight: 700, padding: "1mm 3mm", borderTop: "0.3mm solid #999", background: "#f9f9f9" }}>Note: {parcel.remark}</div>}
+            {parcel.remark && <div style={{ fontSize: "8pt", fontWeight: 700, padding: "0.8mm 3mm", borderTop: "0.3mm solid #999", background: "#f9f9f9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Note: {parcel.remark}</div>}
             {/* Row9: Footer */}
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "6pt", color: "#999", padding: "0.5mm 3mm", borderTop: "0.3mm solid #ddd", marginTop: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "5.5pt", color: "#999", padding: "0.3mm 3mm", borderTop: "0.3mm solid #ddd", marginTop: "auto" }}>
               <span>Print-: {now}</span>
               <span>1/1</span>
               <span>THE MT</span>
@@ -1140,7 +1140,7 @@ export default function FlashBackend() {
         <div class="barcode-row"><canvas id="bc-${idx}" class="barcode-img" data-pno="${pno}"></canvas></div>
         <div class="tracking-row">${pno}</div>
         <div class="dst-row"><b>DST</b> &nbsp;&nbsp; ${p.receiver_district || ""} — ${p.receiver_province || ""}</div>
-        <div class="sender-row">ผู้ส่ง ${p.sender_name} ${p.sender_phone} ${p.sender_address || ""} ${p.sender_province || ""} ${p.sender_postal || ""}</div>
+        <div class="sender-row">ผู้ส่ง ${p.sender_name} ${p.sender_phone} ${p.sender_address || ""}</div>
         <div class="recv-row">
           <div class="recv-info">
             <div class="recv-name">ผู้รับ ${p.receiver_name}</div>
