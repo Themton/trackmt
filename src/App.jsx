@@ -1137,7 +1137,7 @@ export default function FlashBackend() {
       const pno = p.flash_pno;
       return `<div class="label">
         <div class="sort-row"><div class="sort-num">${idx + 1}</div><div class="sort-code">${sc || "FLASH EXPRESS"}</div></div>
-        <div class="barcode-row"><img src="https://barcodeapi.org/api/128/${pno}?height=120&width=2" class="barcode-img" /></div>
+        <div class="barcode-row"><canvas id="bc-${idx}" class="barcode-img" data-pno="${pno}"></canvas></div>
         <div class="tracking-row">${pno}</div>
         <div class="dst-row"><b>DST</b> &nbsp;&nbsp; ${p.receiver_district || ""} — ${p.receiver_province || ""}</div>
         <div class="sender-row">ผู้ส่ง ${p.sender_name} ${p.sender_phone} ${p.sender_address || ""} ${p.sender_province || ""} ${p.sender_postal || ""}</div>
@@ -1169,25 +1169,25 @@ export default function FlashBackend() {
       .btn-download{background:#059669;color:#fff}
       .page-wrap{display:flex;flex-direction:column;align-items:center;padding:24px;gap:24px}
       .label{width:100mm;height:75mm;background:#fff;border:1.5px solid #000;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 4px 24px rgba(0,0,0,.18)}
-      .sort-row{background:#333;color:#fff;display:flex;align-items:stretch;min-height:8mm}
-      .sort-num{background:#e67e22;color:#fff;font-size:14pt;font-weight:900;display:flex;align-items:center;justify-content:center;min-width:10mm}
-      .sort-code{flex:1;display:flex;align-items:center;justify-content:center;font-size:20pt;font-weight:900;letter-spacing:1px}
-      .barcode-row{text-align:center;padding:2.5mm 3mm 1mm}
-      .barcode-img{width:92mm;height:16mm}
-      .tracking-row{background:#f0f0f0;text-align:center;font-size:15pt;font-weight:900;font-family:'Courier New',monospace;letter-spacing:2.5px;padding:1.5mm 0;border-top:0.5mm solid #bbb;border-bottom:0.5mm solid #bbb}
-      .dst-row{background:#666;color:#fff;font-size:10pt;font-weight:700;padding:1mm 3mm}
-      .sender-row{font-size:7pt;color:#555;padding:1mm 3mm;border-bottom:0.3mm solid #ddd}
-      .recv-row{display:flex;flex:1;padding:1.5mm 3mm;gap:2mm}
-      .recv-info{flex:1}
-      .recv-name{font-size:11pt;font-weight:800}
-      .recv-phone{font-size:16pt;font-weight:900;font-family:'Courier New',monospace;line-height:1.2}
-      .recv-addr{font-size:8pt;line-height:1.5;margin-top:1mm}
-      .qr-img{width:22mm;height:22mm;align-self:center}
-      .cod-row{background:#000;display:flex;align-items:center;padding:2mm 3mm;gap:3mm}
-      .cod-badge{background:#fff;color:#000;font-size:8pt;font-weight:900;padding:1mm 3mm}
-      .cod-text{color:#fff;font-size:16pt;font-weight:900}
-      .note-row{font-size:10pt;font-weight:700;padding:1.2mm 3mm;border-top:0.3mm solid #999;background:#f9f9f9}
-      .footer-row{display:flex;justify-content:space-between;font-size:6pt;color:#999;padding:0.5mm 3mm;border-top:0.3mm solid #ddd;margin-top:auto}
+      .sort-row{background:#333;color:#fff;display:flex;align-items:stretch;height:7mm}
+      .sort-num{background:#e67e22;color:#fff;font-size:13pt;font-weight:900;display:flex;align-items:center;justify-content:center;min-width:9mm}
+      .sort-code{flex:1;display:flex;align-items:center;justify-content:center;font-size:18pt;font-weight:900;letter-spacing:1px}
+      .barcode-row{text-align:center;padding:1.5mm 3mm 0.5mm}
+      .barcode-img{width:90mm;height:13mm}
+      .tracking-row{background:#f0f0f0;text-align:center;font-size:13pt;font-weight:900;font-family:'Courier New',monospace;letter-spacing:2px;padding:1mm 0;border-top:0.3mm solid #bbb;border-bottom:0.3mm solid #bbb}
+      .dst-row{background:#666;color:#fff;font-size:9pt;font-weight:700;padding:0.8mm 3mm}
+      .sender-row{font-size:6.5pt;color:#555;padding:0.5mm 3mm;border-bottom:0.3mm solid #ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .recv-row{display:flex;flex:1;padding:1mm 3mm;gap:2mm;min-height:0;overflow:hidden}
+      .recv-info{flex:1;min-width:0;overflow:hidden}
+      .recv-name{font-size:10pt;font-weight:800}
+      .recv-phone{font-size:14pt;font-weight:900;font-family:'Courier New',monospace;line-height:1.1}
+      .recv-addr{font-size:7.5pt;line-height:1.3;margin-top:0.5mm;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+      .qr-img{width:18mm;height:18mm;align-self:center;flex-shrink:0}
+      .cod-row{background:#000;display:flex;align-items:center;padding:1.2mm 3mm;gap:3mm}
+      .cod-badge{background:#fff;color:#000;font-size:7pt;font-weight:900;padding:0.8mm 2.5mm}
+      .cod-text{color:#fff;font-size:13pt;font-weight:900}
+      .note-row{font-size:8pt;font-weight:700;padding:0.8mm 3mm;border-top:0.3mm solid #999;background:#f9f9f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .footer-row{display:flex;justify-content:space-between;font-size:5.5pt;color:#999;padding:0.3mm 3mm;border-top:0.3mm solid #ddd;margin-top:auto}
       @media print{.toolbar{display:none}body{background:#fff}.page-wrap{padding:0;gap:0}.label{box-shadow:none;border-width:0.5mm;page-break-after:always}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
       @page{size:100mm 75mm;margin:0}
     </style>
@@ -1198,9 +1198,23 @@ export default function FlashBackend() {
         <button class="btn-download" onclick="window.print()">📥 ดาวน์โหลด PDF</button>
       </div>
       <div class="page-wrap">${labels}</div>
+      <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
       <script>
+        document.querySelectorAll('canvas[data-pno]').forEach(function(c){
+          try{JsBarcode(c,c.dataset.pno,{format:'CODE128',width:2,height:90,displayValue:false,margin:2,background:'#ffffff'});}catch(e){c.style.border='1px dashed red';}
+        });
         var imgs=document.querySelectorAll('img'),loaded=0,total=imgs.length;
-        imgs.forEach(function(img){if(img.complete){loaded++;}else{img.onload=img.onerror=function(){loaded++;};}});
+        var status=document.createElement('div');
+        status.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;z-index:999;font-family:inherit';
+        status.textContent='กำลังโหลดรูป 0/'+total+'...';
+        if(total>0)document.body.appendChild(status);
+        function checkDone(){
+          loaded++;
+          status.textContent='กำลังโหลดรูป '+loaded+'/'+total+'...';
+          if(loaded>=total){status.textContent='✅ โหลดครบแล้ว — พร้อมปริ้น';setTimeout(function(){status.remove()},2000);}
+        }
+        imgs.forEach(function(img){if(img.complete&&img.naturalWidth>0){checkDone();}else{img.onload=checkDone;img.onerror=function(){this.style.border='1px dashed red';checkDone();};}});
+        if(total===0&&status.parentNode)status.remove();
       </script>
     </body></html>`);
     win.document.close();
