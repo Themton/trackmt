@@ -343,7 +343,7 @@ function PrintLabel({ parcel, onClose }) {
     script.onload = () => {
       const canvas = document.createElement("canvas");
       try {
-        window.JsBarcode(canvas, parcel.flash_pno, { format: "CODE128", width: 2, height: 100, displayValue: false, margin: 4, background: "#ffffff" });
+        window.JsBarcode(canvas, parcel.flash_pno, { format: "CODE128", width: 2, height: 110, displayValue: false, margin: 4, background: "#ffffff" });
         setBarcodeUrl(canvas.toDataURL("image/png"));
       } catch {}
     };
@@ -379,8 +379,8 @@ function PrintLabel({ parcel, onClose }) {
               <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18pt", fontWeight: 900, letterSpacing: "1px" }}>{sc || "FLASH EXPRESS"}</div>
             </div>
             {/* Row2: Barcode */}
-            <div style={{ textAlign: "center", height: "12mm", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {pno && barcodeUrl ? <img src={barcodeUrl} style={{ maxWidth: "90mm", height: "10mm" }} alt="" /> : <div style={{ height: "10mm" }} />}
+            <div style={{ textAlign: "center", height: "15mm", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {pno && barcodeUrl ? <img src={barcodeUrl} style={{ maxWidth: "92mm", height: "13mm" }} alt="" /> : <div style={{ height: "13mm" }} />}
             </div>
             {/* Row3: Tracking Number */}
             <div style={{ background: "#f0f0f0", textAlign: "center", fontSize: "12pt", fontWeight: 900, fontFamily: "'Courier New',monospace", letterSpacing: "2px", padding: "0.8mm 0", borderTop: "0.3mm solid #bbb", borderBottom: "0.3mm solid #bbb" }}>{pno || "—"}</div>
@@ -389,7 +389,7 @@ function PrintLabel({ parcel, onClose }) {
             {/* Row5: Sender */}
             <div style={{ fontSize: "6pt", color: "#555", padding: "0.4mm 3mm", borderBottom: "0.3mm solid #ddd", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>ผู้ส่ง {parcel.sender_name} {parcel.sender_phone} {parcel.sender_address || ""}</div>
             {/* Row6: Receiver + QR */}
-            <div style={{ display: "flex", flex: 1, padding: "1mm 3mm", gap: "2mm", minHeight: "18mm", overflow: "hidden" }}>
+            <div style={{ display: "flex", flex: 1, padding: "1mm 3mm", gap: "2mm", minHeight: "15mm", overflow: "hidden" }}>
               <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                 <div style={{ fontSize: "10pt", fontWeight: 800 }}>ผู้รับ {parcel.receiver_name}</div>
                 <div style={{ fontSize: "14pt", fontWeight: 900, fontFamily: "'Courier New',monospace", lineHeight: 1.1 }}>{maskPhone(parcel.receiver_phone)}</div>
@@ -1176,12 +1176,12 @@ export default function FlashBackend() {
       .sort-row{background:#333;color:#fff;display:flex;align-items:stretch;height:7mm}
       .sort-num{background:#e67e22;color:#fff;font-size:13pt;font-weight:900;display:flex;align-items:center;justify-content:center;min-width:9mm}
       .sort-code{flex:1;display:flex;align-items:center;justify-content:center;font-size:18pt;font-weight:900;letter-spacing:1px}
-      .barcode-row{text-align:center;height:12mm;overflow:hidden;display:flex;align-items:center;justify-content:center}
-      .barcode-img{max-width:90mm;height:10mm;display:block}
+      .barcode-row{text-align:center;height:15mm;overflow:hidden;display:flex;align-items:center;justify-content:center}
+      .barcode-img{max-width:92mm;height:13mm;display:block}
       .tracking-row{background:#f0f0f0;text-align:center;font-size:12pt;font-weight:900;font-family:'Courier New',monospace;letter-spacing:2px;padding:0.8mm 0;border-top:0.3mm solid #bbb;border-bottom:0.3mm solid #bbb}
       .dst-row{background:#666;color:#fff;font-size:8pt;font-weight:700;padding:0.6mm 3mm}
       .sender-row{font-size:6pt;color:#555;padding:0.4mm 3mm;border-bottom:0.3mm solid #ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .recv-row{display:flex;flex:1;padding:1mm 3mm;gap:2mm;min-height:18mm;overflow:hidden}
+      .recv-row{display:flex;flex:1;padding:1mm 3mm;gap:2mm;min-height:15mm;overflow:hidden}
       .recv-info{flex:1;min-width:0;overflow:hidden}
       .recv-name{font-size:10pt;font-weight:800}
       .recv-phone{font-size:14pt;font-weight:900;font-family:'Courier New',monospace;line-height:1.1}
@@ -1205,7 +1205,7 @@ export default function FlashBackend() {
       <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
       <script>
         document.querySelectorAll('canvas[data-pno]').forEach(function(c){
-          try{JsBarcode(c,c.dataset.pno,{format:'CODE128',width:2,height:90,displayValue:false,margin:2,background:'#ffffff'});}catch(e){c.style.border='1px dashed red';}
+          try{JsBarcode(c,c.dataset.pno,{format:'CODE128',width:2,height:110,displayValue:false,margin:2,background:'#ffffff'});}catch(e){c.style.border='1px dashed red';}
         });
         var imgs=document.querySelectorAll('img'),loaded=0,total=imgs.length;
         var status=document.createElement('div');
