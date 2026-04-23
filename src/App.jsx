@@ -1097,18 +1097,23 @@ export default function FlashBackend() {
       const p = targets[i];
       try {
         const result = await flashApi.createOrder(p, getFlashAccount(p));
+        console.log(`Flash batch [${i+1}/${targets.length}] ${p.receiver_name}:`, JSON.stringify(result));
         if (result.code === 1 && result.data) {
           const updates = { flash_pno: result.data.pno || "", flash_sort_code: result.data.sortCode || result.data.dstStoreName || "", flash_api_response: result.data, status: "created" };
           if (!isDemo) await sb.update("fx_parcels", p.id, updates);
           setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
           success++;
-        } else { errors.push(`${p.receiver_name}: ${result.message || "error"}`); }
-      } catch (e) { errors.push(`${p.receiver_name}: ${e.message}`); }
+        } else { console.error("Flash API error:", JSON.stringify(result)); errors.push(`${p.receiver_name}: [code ${result.code}] ${result.message || "error"}`); }
+      } catch (e) { console.error("Flash API exception:", e); errors.push(`${p.receiver_name}: ${e.message}`); }
       if (i % 3 === 2) await new Promise(r => setTimeout(r, 500));
     }
     setGlobalLoading(null);
     setBatchProgress(null);
-    showToast(`สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ`);
+    if (errors.length) {
+      alert(`❌ สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ\n\nรายการที่ไม่สำเร็จ:\n${errors.slice(0, 20).join("\n")}${errors.length > 20 ? "\n... อีก " + (errors.length - 20) + " รายการ" : ""}`);
+    } else {
+      showToast(`สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ`);
+    }
     setSelectedIds(new Set());
   };
 
