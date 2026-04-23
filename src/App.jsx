@@ -343,7 +343,7 @@ function PrintLabel({ parcel, onClose }) {
     script.onload = () => {
       const canvas = document.createElement("canvas");
       try {
-        window.JsBarcode(canvas, parcel.flash_pno, { format: "CODE128", width: 2, height: 110, displayValue: false, margin: 4, background: "#ffffff" });
+        window.JsBarcode(canvas, parcel.flash_pno, { format: "CODE128", width: 2, height: 120, displayValue: false, margin: 4, background: "#ffffff" });
         setBarcodeUrl(canvas.toDataURL("image/png"));
       } catch {}
     };
@@ -374,40 +374,42 @@ function PrintLabel({ parcel, onClose }) {
         <div ref={ref} style={{ border: "1px solid #ccc" }}>
           <div style={{ width: "100mm", height: "75mm", fontFamily: "'IBM Plex Sans Thai',sans-serif", border: "0.5mm solid #000", overflow: "hidden", boxSizing: "border-box", display: "flex", flexDirection: "column", background: "#fff" }}>
             {/* Row1: Sort Code */}
-            <div style={{ background: "#333", color: "#fff", display: "flex", alignItems: "stretch", height: "7mm" }}>
-              <div style={{ background: "#e67e22", color: "#fff", fontSize: "13pt", fontWeight: 900, padding: "0 3mm", display: "flex", alignItems: "center", justifyContent: "center", minWidth: "9mm" }}>1</div>
-              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18pt", fontWeight: 900, letterSpacing: "1px" }}>{sc || "FLASH EXPRESS"}</div>
+            <div style={{ background: "#333", color: "#fff", display: "flex", alignItems: "stretch", height: "8mm" }}>
+              <div style={{ background: "#e67e22", color: "#fff", fontSize: "14pt", fontWeight: 900, padding: "0 3mm", display: "flex", alignItems: "center", justifyContent: "center", minWidth: "10mm" }}>1</div>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20pt", fontWeight: 900, letterSpacing: "1px" }}>{sc || "FLASH EXPRESS"}</div>
             </div>
             {/* Row2: Barcode */}
-            <div style={{ textAlign: "center", height: "15mm", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {pno && barcodeUrl ? <img src={barcodeUrl} style={{ maxWidth: "92mm", height: "13mm" }} alt="" /> : <div style={{ height: "13mm" }} />}
+            <div style={{ textAlign: "center", height: "16mm", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {pno && barcodeUrl ? <img src={barcodeUrl} style={{ maxWidth: "94mm", height: "14mm" }} alt="" /> : <div style={{ height: "14mm" }} />}
             </div>
             {/* Row3: Tracking Number */}
-            <div style={{ background: "#f0f0f0", textAlign: "center", fontSize: "12pt", fontWeight: 900, fontFamily: "'Courier New',monospace", letterSpacing: "2px", padding: "0.8mm 0", borderTop: "0.3mm solid #bbb", borderBottom: "0.3mm solid #bbb" }}>{pno || "—"}</div>
+            <div style={{ background: "#f0f0f0", textAlign: "center", fontSize: "14pt", fontWeight: 900, fontFamily: "'Courier New',monospace", letterSpacing: "2.5px", padding: "1.2mm 0", borderTop: "0.5mm solid #bbb", borderBottom: "0.5mm solid #bbb" }}>{pno || "—"}</div>
             {/* Row4: DST */}
-            <div style={{ background: "#666", color: "#fff", fontSize: "8pt", fontWeight: 700, padding: "0.6mm 3mm" }}><span style={{ fontWeight: 900 }}>DST</span> &nbsp;&nbsp; {parcel.receiver_district || ""} — {parcel.receiver_province || ""}</div>
+            <div style={{ background: "#666", color: "#fff", fontSize: "9pt", fontWeight: 700, padding: "0.8mm 3mm" }}><span style={{ fontWeight: 900 }}>DST</span> &nbsp;&nbsp; {parcel.receiver_district || ""} — {parcel.receiver_province || ""}</div>
             {/* Row5: Sender */}
-            <div style={{ fontSize: "6pt", color: "#555", padding: "0.4mm 3mm", borderBottom: "0.3mm solid #ddd", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>ผู้ส่ง {parcel.sender_name} {parcel.sender_phone} {parcel.sender_address || ""}</div>
+            <div style={{ fontSize: "6.5pt", color: "#555", padding: "0.5mm 3mm", borderBottom: "0.3mm solid #ddd", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>ผู้ส่ง {parcel.sender_name} {parcel.sender_phone} {parcel.sender_address || ""}</div>
             {/* Row6: Receiver + QR */}
-            <div style={{ display: "flex", flex: 1, padding: "1mm 3mm", gap: "2mm", minHeight: "15mm", overflow: "hidden" }}>
+            <div style={{ display: "flex", flex: 1, padding: "1mm 3mm", gap: "2mm", overflow: "hidden" }}>
               <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                 <div style={{ fontSize: "10pt", fontWeight: 800 }}>ผู้รับ {parcel.receiver_name}</div>
-                <div style={{ fontSize: "14pt", fontWeight: 900, fontFamily: "'Courier New',monospace", lineHeight: 1.1 }}>{maskPhone(parcel.receiver_phone)}</div>
-                <div style={{ fontSize: "7pt", lineHeight: 1.3, marginTop: "0.5mm", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                  {parcel.receiver_address || ""} {parcel.receiver_subdistrict}{parcel.receiver_subdistrict ? ", " : ""}{parcel.receiver_district} {parcel.receiver_province} {parcel.receiver_postal}
+                <div style={{ fontSize: "15pt", fontWeight: 900, fontFamily: "'Courier New',monospace", lineHeight: 1.1 }}>{maskPhone(parcel.receiver_phone)}</div>
+                <div style={{ fontSize: "7.5pt", lineHeight: 1.35, marginTop: "0.5mm" }}>
+                  {parcel.receiver_address || ""}<br/>
+                  {parcel.receiver_subdistrict}{parcel.receiver_subdistrict ? ", " : ""}{parcel.receiver_district}<br/>
+                  {parcel.receiver_province} {parcel.receiver_postal}
                 </div>
               </div>
-              {pno && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${pno}&margin=0`} style={{ width: "16mm", height: "16mm", alignSelf: "center", flexShrink: 0 }} alt="" />}
+              {pno && <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${pno}&margin=0`} style={{ width: "20mm", height: "20mm", alignSelf: "center", flexShrink: 0 }} alt="" />}
             </div>
             {/* Row7: COD */}
-            {parcel.cod_enabled && <div style={{ background: "#000", display: "flex", alignItems: "center", padding: "1mm 3mm", gap: "2mm" }}>
-              <span style={{ background: "#fff", color: "#000", fontSize: "7pt", fontWeight: 900, padding: "0.5mm 2mm" }}>COD</span>
-              <span style={{ color: "#fff", fontSize: "12pt", fontWeight: 900 }}>เก็บเงินค่าสินค้า COD {Number(parcel.cod_amount || 0).toLocaleString()}</span>
+            {parcel.cod_enabled && <div style={{ background: "#000", display: "flex", alignItems: "center", padding: "1.5mm 3mm", gap: "3mm" }}>
+              <span style={{ background: "#fff", color: "#000", fontSize: "8pt", fontWeight: 900, padding: "0.8mm 3mm" }}>COD</span>
+              <span style={{ color: "#fff", fontSize: "14pt", fontWeight: 900 }}>เก็บเงินค่าสินค้า COD {Number(parcel.cod_amount || 0).toLocaleString()}</span>
             </div>}
             {/* Row8: Note */}
-            {parcel.remark && <div style={{ fontSize: "7pt", fontWeight: 700, padding: "0.5mm 3mm", borderTop: "0.3mm solid #999", background: "#f9f9f9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Note: {parcel.remark}</div>}
+            {parcel.remark && <div style={{ fontSize: "9pt", fontWeight: 700, padding: "0.8mm 3mm", borderTop: "0.3mm solid #999", background: "#f9f9f9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Note: {parcel.remark}</div>}
             {/* Row9: Footer */}
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "5pt", color: "#999", padding: "0.3mm 3mm", borderTop: "0.3mm solid #ddd", marginTop: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "5.5pt", color: "#999", padding: "0.3mm 3mm", borderTop: "0.3mm solid #ddd", marginTop: "auto" }}>
               <span>Print-: {now}</span>
               <span>1/1</span>
               <span>THE MT</span>
@@ -1149,7 +1151,7 @@ export default function FlashBackend() {
           <div class="recv-info">
             <div class="recv-name">ผู้รับ ${p.receiver_name}</div>
             <div class="recv-phone">${maskPhone(p.receiver_phone)}</div>
-            <div class="recv-addr">${p.receiver_address || ""} ${p.receiver_subdistrict || ""}${p.receiver_subdistrict ? ", " : ""}${p.receiver_district || ""} ${p.receiver_province || ""} ${p.receiver_postal || ""}</div>
+            <div class="recv-addr">${p.receiver_address || ""}<br/>${p.receiver_subdistrict || ""}${p.receiver_subdistrict ? ", " : ""}${p.receiver_district || ""}<br/>${p.receiver_province || ""} ${p.receiver_postal || ""}</div>
           </div>
           <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${pno}&margin=0" class="qr-img" />
         </div>
@@ -1173,25 +1175,25 @@ export default function FlashBackend() {
       .btn-download{background:#059669;color:#fff}
       .page-wrap{display:flex;flex-direction:column;align-items:center;padding:24px;gap:24px}
       .label{width:100mm;height:75mm;background:#fff;border:1.5px solid #000;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 4px 24px rgba(0,0,0,.18)}
-      .sort-row{background:#333;color:#fff;display:flex;align-items:stretch;height:7mm}
-      .sort-num{background:#e67e22;color:#fff;font-size:13pt;font-weight:900;display:flex;align-items:center;justify-content:center;min-width:9mm}
-      .sort-code{flex:1;display:flex;align-items:center;justify-content:center;font-size:18pt;font-weight:900;letter-spacing:1px}
-      .barcode-row{text-align:center;height:15mm;overflow:hidden;display:flex;align-items:center;justify-content:center}
-      .barcode-img{max-width:92mm;height:13mm;display:block}
-      .tracking-row{background:#f0f0f0;text-align:center;font-size:12pt;font-weight:900;font-family:'Courier New',monospace;letter-spacing:2px;padding:0.8mm 0;border-top:0.3mm solid #bbb;border-bottom:0.3mm solid #bbb}
-      .dst-row{background:#666;color:#fff;font-size:8pt;font-weight:700;padding:0.6mm 3mm}
-      .sender-row{font-size:6pt;color:#555;padding:0.4mm 3mm;border-bottom:0.3mm solid #ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .recv-row{display:flex;flex:1;padding:1mm 3mm;gap:2mm;min-height:15mm;overflow:hidden}
+      .sort-row{background:#333;color:#fff;display:flex;align-items:stretch;height:8mm}
+      .sort-num{background:#e67e22;color:#fff;font-size:14pt;font-weight:900;display:flex;align-items:center;justify-content:center;min-width:10mm}
+      .sort-code{flex:1;display:flex;align-items:center;justify-content:center;font-size:20pt;font-weight:900;letter-spacing:1px}
+      .barcode-row{text-align:center;height:16mm;overflow:hidden;display:flex;align-items:center;justify-content:center}
+      .barcode-img{max-width:94mm;height:14mm;display:block}
+      .tracking-row{background:#f0f0f0;text-align:center;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;letter-spacing:2.5px;padding:1.2mm 0;border-top:0.5mm solid #bbb;border-bottom:0.5mm solid #bbb}
+      .dst-row{background:#666;color:#fff;font-size:9pt;font-weight:700;padding:0.8mm 3mm}
+      .sender-row{font-size:6.5pt;color:#555;padding:0.5mm 3mm;border-bottom:0.3mm solid #ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .recv-row{display:flex;flex:1;padding:1mm 3mm;gap:2mm;overflow:hidden}
       .recv-info{flex:1;min-width:0;overflow:hidden}
       .recv-name{font-size:10pt;font-weight:800}
-      .recv-phone{font-size:14pt;font-weight:900;font-family:'Courier New',monospace;line-height:1.1}
-      .recv-addr{font-size:7pt;line-height:1.3;margin-top:0.5mm;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-      .qr-img{width:16mm;height:16mm;align-self:center;flex-shrink:0}
-      .cod-row{background:#000;display:flex;align-items:center;padding:1mm 3mm;gap:2mm}
-      .cod-badge{background:#fff;color:#000;font-size:7pt;font-weight:900;padding:0.5mm 2mm}
-      .cod-text{color:#fff;font-size:12pt;font-weight:900}
-      .note-row{font-size:7pt;font-weight:700;padding:0.5mm 3mm;border-top:0.3mm solid #999;background:#f9f9f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .footer-row{display:flex;justify-content:space-between;font-size:5pt;color:#999;padding:0.3mm 3mm;border-top:0.3mm solid #ddd;margin-top:auto}
+      .recv-phone{font-size:15pt;font-weight:900;font-family:'Courier New',monospace;line-height:1.1}
+      .recv-addr{font-size:7.5pt;line-height:1.35;margin-top:0.5mm}
+      .qr-img{width:20mm;height:20mm;align-self:center;flex-shrink:0}
+      .cod-row{background:#000;display:flex;align-items:center;padding:1.5mm 3mm;gap:3mm}
+      .cod-badge{background:#fff;color:#000;font-size:8pt;font-weight:900;padding:0.8mm 3mm}
+      .cod-text{color:#fff;font-size:14pt;font-weight:900}
+      .note-row{font-size:9pt;font-weight:700;padding:0.8mm 3mm;border-top:0.3mm solid #999;background:#f9f9f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .footer-row{display:flex;justify-content:space-between;font-size:5.5pt;color:#999;padding:0.3mm 3mm;border-top:0.3mm solid #ddd;margin-top:auto}
       @media print{.toolbar{display:none}body{background:#fff}.page-wrap{padding:0;gap:0}.label{box-shadow:none;border-width:0.5mm;page-break-after:always}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
       @page{size:100mm 75mm;margin:0}
     </style>
@@ -1205,7 +1207,7 @@ export default function FlashBackend() {
       <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
       <script>
         document.querySelectorAll('canvas[data-pno]').forEach(function(c){
-          try{JsBarcode(c,c.dataset.pno,{format:'CODE128',width:2,height:110,displayValue:false,margin:2,background:'#ffffff'});}catch(e){c.style.border='1px dashed red';}
+          try{JsBarcode(c,c.dataset.pno,{format:'CODE128',width:2,height:120,displayValue:false,margin:2,background:'#ffffff'});}catch(e){c.style.border='1px dashed red';}
         });
         var imgs=document.querySelectorAll('img'),loaded=0,total=imgs.length;
         var status=document.createElement('div');
