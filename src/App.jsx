@@ -1280,59 +1280,109 @@ export default function FlashBackend() {
     const [exportShop, setExportShop] = useState("");
     const [exportFrom, setExportFrom] = useState("");
     const [exportTo, setExportTo] = useState("");
+    const [exportStaff, setExportStaff] = useState("");
     const [exporting, setExporting] = useState(false);
 
     const getExportData = () => {
       let list = parcels;
       if (exportShop) list = list.filter(p => p.shop_id === exportShop);
+      if (exportStaff) list = list.filter(p => p.created_by_name === exportStaff);
       if (exportFrom) list = list.filter(p => new Date(p.created_at) >= new Date(exportFrom));
       if (exportTo) list = list.filter(p => new Date(p.created_at) <= new Date(exportTo + "T23:59:59"));
       return list;
     };
+
+    // รายชื่อพนักงานทั้งหมด
+    const staffNames = useMemo(() => [...new Set(parcels.map(p => p.created_by_name).filter(Boolean))].sort(), [parcels]);
+
+    // สรุปแยกพนักงาน (preview)
+    const previewData = getExportData();
+    const staffStats = useMemo(() => {
+      const map = {};
+      previewData.forEach(p => {
+        const name = p.created_by_name || "ไม่ระบุ";
+        if (!map[name]) map[name] = { total: 0, cod: 0, codAmount: 0, created: 0, printed: 0, cancelled: 0, draft: 0 };
+        map[name].total++;
+        if (p.cod_enabled) { map[name].cod++; map[name].codAmount += Number(p.cod_amount || 0); }
+        if (p.status === "draft") map[name].draft++;
+        if (p.status === "created") map[name].created++;
+        if (p.status === "printed") map[name].printed++;
+        if (p.status === "cancelled") map[name].cancelled++;
+      });
+      return Object.entries(map).sort((a, b) => b[1].total - a[1].total);
+    }, [previewData]);
 
     const doExport = async (format) => {
       const data = getExportData();
       if (!data.length) { alert("ไม่มีข้อมูลที่จะ Export"); return; }
       setExporting(true);
 
-      const headers = ["ชื่อผู้รับ","เบอร์ผู้รับ","ที่อยู่","ตำบล","อำเภอ","จังหวัด","รหัสไปรษณีย์","Tracking","Sort Code","COD","ยอด COD","หมายเหตุ","ชื่อผู้ส่ง","เบอร์ผู้ส่ง","วันที่สร้าง"];
-      const rows = data.map(p => [
-        p.receiver_name, p.receiver_phone, p.receiver_address,
-        p.receiver_subdistrict, p.receiver_district, p.receiver_province, p.receiver_postal,
-        p.flash_pno || "", p.flash_sort_code || "",
-        p.cod_enabled ? "ใช่" : "ไม่", p.cod_amount || 0,
-        p.remark || "",
-        p.sender_name, p.sender_phone,
-        new Date(p.created_at).toLocaleString("th-TH"),
-      ]);
+      const headers = ["เลขพัสดุ","ชื่อผู้รับ","เบอร์ผู้รับ","ที่อยู่","ตำบล","อำเภอ","จังหวัด","รหัสไปรษณีย์","Tracking","Sort Code","สถานะ","COD","ยอด COD","หมายเหตุ","ชื่อผู้ส่ง","เบอร์ผู้ส่ง","ร้านค้า","พนักงานผู้สร้าง","อีเมล","วันที่สร้าง"];
+      const statusMap = { draft: "เตรียมส่ง", created: "สร้างเลขแล้ว", printed: "ปริ้นแล้ว", cancelled: "ยกเลิก" };
+      const rows = data.map(p => {
+        const shop = shops?.find(s => s.id === p.shop_id);
+        return [
+          p.parcel_no || "", p.receiver_name, p.receiver_phone, p.receiver_address,
+          p.receiver_subdistrict, p.receiver_district, p.receiver_province, p.receiver_postal,
+          p.flash_pno || "", p.flash_sort_code || "",
+          statusMap[p.status] || p.status || "",
+          p.cod_enabled ? "ใช่" : "ไม่", p.cod_amount || 0,
+          p.remark || "",
+          p.sender_name, p.sender_phone,
+          shop?.name || "",
+          p.created_by_name || "",
+          p.created_by_email || "",
+          new Date(p.created_at).toLocaleString("th-TH"),
+        ];
+      });
+
+      // สรุปแยกพนักงาน
+      const staffSummary = {};
+      data.forEach(p => {
+        const name = p.created_by_name || "ไม่ระบุ";
+        if (!staffSummary[name]) staffSummary[name] = { total: 0, cod: 0, codAmount: 0, created: 0, printed: 0, cancelled: 0 };
+        staffSummary[name].total++;
+        if (p.cod_enabled) { staffSummary[name].cod++; staffSummary[name].codAmount += Number(p.cod_amount || 0); }
+        if (p.status === "created") staffSummary[name].created++;
+        if (p.status === "printed") staffSummary[name].printed++;
+        if (p.status === "cancelled") staffSummary[name].cancelled++;
+      });
+
+      // Staff summary rows
+      const summaryHeaders = ["พนักงาน", "จำนวนทั้งหมด", "สร้างเลขแล้ว", "ปริ้นแล้ว", "ยกเลิก", "จำนวน COD", "ยอด COD รวม"];
+      const summaryRows = Object.entries(staffSummary).map(([name, s]) => [name, s.total, s.created, s.printed, s.cancelled, s.cod, s.codAmount]);
 
       if (format === "csv") {
         const bom = "\uFEFF";
-        const csv = bom + [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const mainCsv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+        const summaryCsv = "\n\n--- สรุปแยกพนักงาน ---\n" + [summaryHeaders, ...summaryRows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+        const blob = new Blob([bom + mainCsv + summaryCsv], { type: "text/csv;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href = url; a.download = `flash-export-${new Date().toISOString().slice(0,10)}.csv`; a.click();
         URL.revokeObjectURL(url);
       } else {
         const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
         const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-        ws["!cols"] = headers.map((_, i) => ({ wch: i < 2 ? 20 : i === 2 ? 30 : i === 7 ? 18 : 14 }));
+        ws["!cols"] = headers.map((_, i) => ({ wch: [0,1,7,8,16,17,18].includes(i) ? 20 : i === 3 ? 30 : 14 }));
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Export");
+        XLSX.utils.book_append_sheet(wb, ws, "ข้อมูลพัสดุ");
+        // Sheet 2: สรุปพนักงาน
+        const ws2 = XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]);
+        ws2["!cols"] = summaryHeaders.map(() => ({ wch: 18 }));
+        XLSX.utils.book_append_sheet(wb, ws2, "สรุปพนักงาน");
         XLSX.writeFile(wb, `flash-export-${new Date().toISOString().slice(0,10)}.xlsx`);
       }
       setExporting(false);
       showToast(`Export สำเร็จ ${data.length} รายการ`);
     };
 
-    const previewData = getExportData();
     const I = { padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontFamily: "inherit" };
 
     return (
       <div style={{ padding: 24 }}>
         <div style={{ marginBottom: 20 }}>
           <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>📤 Export ข้อมูล</h2>
-          <p style={{ margin: "6px 0 0", fontSize: 14, color: "#64748b" }}>ดาวน์โหลดข้อมูลพัสดุเป็น Excel หรือ CSV</p>
+          <p style={{ margin: "6px 0 0", fontSize: 14, color: "#64748b" }}>ดาวน์โหลดข้อมูลพัสดุเป็น Excel หรือ CSV — แจกแจงตามพนักงาน</p>
         </div>
         <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", overflow: "hidden" }}>
           {/* Filters */}
@@ -1346,6 +1396,13 @@ export default function FlashBackend() {
                 </select>
               </div>
               <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>พนักงาน</label>
+                <select value={exportStaff} onChange={e => setExportStaff(e.target.value)} style={{ ...I, minWidth: 150 }}>
+                  <option value="">ทุกคน</option>
+                  {staffNames.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 4 }}>ตั้งแต่วันที่</label>
                 <input type="date" value={exportFrom} onChange={e => setExportFrom(e.target.value)} style={I} />
               </div>
@@ -1356,6 +1413,28 @@ export default function FlashBackend() {
             </div>
           </div>
 
+          {/* Staff Summary */}
+          {staffStats.length > 0 && (
+            <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9" }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>👥 สรุปแยกพนักงาน ({staffStats.length} คน)</div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {staffStats.map(([name, s]) => (
+                  <div key={name} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 14px", minWidth: 200 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>🧑‍💻 {name}</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 12px", fontSize: 12 }}>
+                      <span style={{ color: "#64748b" }}>ทั้งหมด</span><span style={{ fontWeight: 700 }}>{s.total}</span>
+                      <span style={{ color: "#64748b" }}>เตรียมส่ง</span><span style={{ fontWeight: 600, color: "#f59e0b" }}>{s.draft}</span>
+                      <span style={{ color: "#64748b" }}>สร้างเลขแล้ว</span><span style={{ fontWeight: 600, color: "#059669" }}>{s.created}</span>
+                      <span style={{ color: "#64748b" }}>ปริ้นแล้ว</span><span style={{ fontWeight: 600, color: "#6366f1" }}>{s.printed}</span>
+                      <span style={{ color: "#64748b" }}>ยกเลิก</span><span style={{ fontWeight: 600, color: "#dc2626" }}>{s.cancelled}</span>
+                      <span style={{ color: "#64748b" }}>COD รวม</span><span style={{ fontWeight: 700, color: "#d97706" }}>฿{s.codAmount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Preview */}
           <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9" }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>พบ {previewData.length} รายการ</div>
@@ -1363,7 +1442,7 @@ export default function FlashBackend() {
               <div style={{ overflowX: "auto", maxHeight: 300 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                   <thead><tr style={{ background: "#f8fafc" }}>
-                    {["ชื่อ","เบอร์","อำเภอ","จังหวัด","Tracking","COD","หมายเหตุ"].map((h,i) => <th key={i} style={{ padding: "6px 8px", textAlign: "left", fontWeight: 700, color: "#64748b", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>)}
+                    {["ชื่อ","เบอร์","อำเภอ","จังหวัด","Tracking","COD","พนักงาน","หมายเหตุ"].map((h,i) => <th key={i} style={{ padding: "6px 8px", textAlign: "left", fontWeight: 700, color: "#64748b", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" }}>{h}</th>)}
                   </tr></thead>
                   <tbody>{previewData.slice(0, 20).map((p, i) => {
                     return <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
@@ -1373,6 +1452,7 @@ export default function FlashBackend() {
                       <td style={{ padding: "5px 8px" }}>{p.receiver_province}</td>
                       <td style={{ padding: "5px 8px", fontFamily: "monospace", fontSize: 10 }}>{p.flash_pno || "—"}</td>
                       <td style={{ padding: "5px 8px", fontWeight: 600, color: "#d97706" }}>{p.cod_enabled ? `฿${p.cod_amount}` : "—"}</td>
+                      <td style={{ padding: "5px 8px", fontSize: 11, color: "#4f46e5", fontWeight: 600 }}>{p.created_by_name || "—"}</td>
                       <td style={{ padding: "5px 8px", fontSize: 10, color: "#64748b", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.remark || "—"}</td>
                     </tr>;
                   })}</tbody>
