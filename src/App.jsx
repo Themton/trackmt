@@ -679,7 +679,10 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
           receiver_postal: postal,
           cod_enabled: codAmount > 0,
           cod_amount: codAmount,
+          customer_fb_line: String(r[6] || ""),
           item_desc: String(r[7] || ""),
+          sale_person: String(r[8] || ""),
+          sale_price: parseFloat(r[9]) || 0,
           remark: remark,
           _selected: true,
         });
@@ -708,6 +711,9 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
           receiver_province: r.receiver_province || "", receiver_postal: r.receiver_postal,
           weight: 1, quantity: 1, item_desc: r.item_desc || "",
           cod_enabled: r.cod_enabled, cod_amount: r.cod_amount || 0,
+          customer_fb_line: r.customer_fb_line || "",
+          sale_person: r.sale_person || "",
+          sale_price: r.sale_price || 0,
           remark: r.remark || "",
           created_by: user.id, created_by_name: user.display_name, shop_id: selectedShop || null,
         };
@@ -1286,21 +1292,21 @@ export default function FlashBackend() {
     const getExportData = () => {
       let list = parcels;
       if (exportShop) list = list.filter(p => p.shop_id === exportShop);
-      if (exportStaff) list = list.filter(p => p.created_by_name === exportStaff);
+      if (exportStaff) list = list.filter(p => (p.sale_person || p.created_by_name) === exportStaff);
       if (exportFrom) list = list.filter(p => new Date(p.created_at) >= new Date(exportFrom));
       if (exportTo) list = list.filter(p => new Date(p.created_at) <= new Date(exportTo + "T23:59:59"));
       return list;
     };
 
-    // รายชื่อพนักงานทั้งหมด
-    const staffNames = useMemo(() => [...new Set(parcels.map(p => p.created_by_name).filter(Boolean))].sort(), [parcels]);
+    // รายชื่อพนักงานทั้งหมด (SalesPerson จากไฟล์)
+    const staffNames = useMemo(() => [...new Set(parcels.map(p => p.sale_person || p.created_by_name).filter(Boolean))].sort(), [parcels]);
 
     // สรุปแยกพนักงาน (preview)
     const previewData = getExportData();
     const staffStats = useMemo(() => {
       const map = {};
       previewData.forEach(p => {
-        const name = p.created_by_name || "ไม่ระบุ";
+        const name = p.sale_person || p.created_by_name || "ไม่ระบุ";
         if (!map[name]) map[name] = { total: 0, cod: 0, codAmount: 0, created: 0, printed: 0, cancelled: 0, draft: 0 };
         map[name].total++;
         if (p.cod_enabled) { map[name].cod++; map[name].codAmount += Number(p.cod_amount || 0); }
@@ -1324,7 +1330,7 @@ export default function FlashBackend() {
         "Customer FB/Line เฟส/ไลน์ลูกค้า", "SalesChannel ช่องทางจำหน่าย",
         "SalesPerson ชื่อแอดมิน", "SalePrice ราคาขาย",
         "COD* ยอดเก็บเงินปลายทาง", "Remark หมายเหตุ",
-        "Tracking", "Sort Code", "สถานะ", "ร้านค้า", "วันที่สร้าง",
+        "Tracking", "Sort Code", "สถานะ", "ร้านค้า", "ผู้สร้างรายการ", "วันที่สร้าง",
       ];
       const statusMap = { draft: "เตรียมส่ง", created: "สร้างเลขแล้ว", printed: "ปริ้นแล้ว", cancelled: "ยกเลิก" };
       const rows = data.map(p => {
@@ -1332,11 +1338,17 @@ export default function FlashBackend() {
         return [
           p.receiver_phone || "", p.receiver_name || "", p.receiver_address || "",
           p.receiver_subdistrict || "", p.receiver_district || "", p.receiver_postal || "",
-          "", // Customer FB/Line
+          p.customer_fb_line || "", // Customer FB/Line
           p.item_desc || "", // SalesChannel
-          p.created_by_name || "", // SalesPerson = พนักงาน
-          p.cod_amount || 0, // SalePrice
+          p.sale_person || "", // SalesPerson ชื่อแอดมิน (จากไฟล์ Import)
+          p.sale_price || p.cod_amount || 0, // SalePrice
           p.cod_enabled ? (p.cod_amount || 0) : 0, // COD
+          p.remark || "",
+          p.flash_pno || "", p.flash_sort_code || "",
+          statusMap[p.status] || p.status || "",
+          shop?.name || "",
+          p.created_by_name || "",
+          new Date(p.created_at).toLocaleString("th-TH"),
           p.remark || "",
           p.flash_pno || "", p.flash_sort_code || "",
           statusMap[p.status] || p.status || "",
@@ -1345,10 +1357,10 @@ export default function FlashBackend() {
         ];
       });
 
-      // สรุปแยกพนักงาน
+      // สรุปแยกพนักงาน (SalesPerson จากไฟล์ Import)
       const staffSummary = {};
       data.forEach(p => {
-        const name = p.created_by_name || "ไม่ระบุ";
+        const name = p.sale_person || p.created_by_name || "ไม่ระบุ";
         if (!staffSummary[name]) staffSummary[name] = { total: 0, cod: 0, codAmount: 0, created: 0, printed: 0, cancelled: 0 };
         staffSummary[name].total++;
         if (p.cod_enabled) { staffSummary[name].cod++; staffSummary[name].codAmount += Number(p.cod_amount || 0); }
@@ -1374,8 +1386,8 @@ export default function FlashBackend() {
         // Row 1: คำอธิบาย (เหมือนไฟล์ Import)
         const noteRow = ["ช่องสีแดงต้องกรอก ช่องสีขาวไม่จำเป็น", "", "", "", "", "", "", "", "", "", "", "", "— คอลัมน์เพิ่มจากระบบ —"];
         const ws = XLSX.utils.aoa_to_sheet([noteRow, headers, ...rows]);
-        // Column widths: MobileNo=14, Name=20, Address=35, SubDist=14, Dist=14, ZIP=8, FB=20, Channel=25, Person=14, Price=10, COD=10, Remark=25, Track=18, Sort=12, Status=12, Shop=16, Date=18
-        ws["!cols"] = [14,20,35,14,14,8,20,25,14,10,10,25,18,12,12,16,18].map(w => ({ wch: w }));
+        // Column widths: MobileNo=14, Name=20, Address=35, SubDist=14, Dist=14, ZIP=8, FB=20, Channel=25, Person=14, Price=10, COD=10, Remark=25, Track=18, Sort=12, Status=12, Shop=16, Creator=16, Date=18
+        ws["!cols"] = [14,20,35,14,14,8,20,25,14,10,10,25,18,12,12,16,16,18].map(w => ({ wch: w }));
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "ProShip");
         // Sheet 2: สรุปพนักงาน
@@ -1464,7 +1476,7 @@ export default function FlashBackend() {
                       <td style={{ padding: "5px 8px" }}>{p.receiver_province}</td>
                       <td style={{ padding: "5px 8px", fontFamily: "monospace", fontSize: 10 }}>{p.flash_pno || "—"}</td>
                       <td style={{ padding: "5px 8px", fontWeight: 600, color: "#d97706" }}>{p.cod_enabled ? `฿${p.cod_amount}` : "—"}</td>
-                      <td style={{ padding: "5px 8px", fontSize: 11, color: "#4f46e5", fontWeight: 600 }}>{p.created_by_name || "—"}</td>
+                      <td style={{ padding: "5px 8px", fontSize: 11, color: "#4f46e5", fontWeight: 600 }}>{p.sale_person || p.created_by_name || "—"}</td>
                       <td style={{ padding: "5px 8px", fontSize: 10, color: "#64748b", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.remark || "—"}</td>
                     </tr>;
                   })}</tbody>
