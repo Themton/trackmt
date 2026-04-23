@@ -1162,7 +1162,7 @@ export default function FlashBackend() {
     html += `.bc-wrap svg{width:92%;height:45px}`;
     html += `.pno-row{font-size:12px;font-weight:900;text-align:center;letter-spacing:1.5px;padding:2px 0;border-bottom:1.5px solid #000;background:#f8f8f8}`;
     html += `.dst-bar{background:#333;color:#fff;padding:2px 8px;font-size:8px;font-weight:700;letter-spacing:1px}`;
-    html += `.body-area{padding:4px 8px 2px;border-bottom:1px solid #000;min-height:90px;position:relative}`;
+    html += `.body-area{padding:4px 8px 2px;border-bottom:1px solid #000;min-height:112px;position:relative}`;
     html += `.src-line{font-size:7.5px;color:#555;line-height:1.4;margin-bottom:2px}`;
     html += `.dst-name{font-size:10px;font-weight:800;margin-top:2px}`;
     html += `.dst-phone{font-size:12px;font-weight:900;letter-spacing:0.5px}`;
