@@ -28,7 +28,9 @@ const flashApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    return await res.json();
+    const text = await res.text();
+    if (!res.ok) throw new Error(`Worker HTTP ${res.status}: ${text.substring(0, 200)}`);
+    try { return JSON.parse(text); } catch { throw new Error(`Worker ตอบกลับไม่ใช่ JSON: ${text.substring(0, 200)}`); }
   },
   async ping(account) {
     return this.callWorker("ping", { mchId: account?.mchId || "CBC9351" });
