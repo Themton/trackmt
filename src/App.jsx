@@ -1133,96 +1133,112 @@ export default function FlashBackend() {
     return { total: sel.length, noTracking: sel.filter(p => !p.flash_pno).length, hasTracking: sel.filter(p => p.flash_pno).length };
   }, [parcels, selectedIds]);
 
-  // ═══ SHARED PRINT PAGE — ใช้ทั้งปริ้นเดี่ยวและหลายใบ ═══
+  // ═══ SHARED PRINT PAGE — CRM2 style (SVG barcode + QR local + jsPDF) ═══
   const openPrintPage = (targets) => {
     const maskPhone = (ph) => (ph || "").replace(/^(\d{3})\d{4}(\d{3})$/, "$1****$2");
     const now = new Date().toLocaleString("en-GB", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
     const total = targets.length;
-    const labels = targets.map((p, idx) => {
+
+    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>ใบปะหน้า Flash Express (${total} ใบ)</title>`;
+    html += `<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>`;
+    html += `<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"><\/script>`;
+    html += `<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>`;
+    html += `<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"><\/script>`;
+    html += `<style>@page{size:100mm 75mm;margin:0}*{box-sizing:border-box}body{margin:0;padding:0;font-family:'Sarabun','Noto Sans Thai',Tahoma,Arial,sans-serif}`;
+    html += `@media print{.no-print{display:none!important}.label.hide-print{display:none!important}}`;
+    html += `.toolbar{background:linear-gradient(135deg,#1e293b,#334155);color:#fff;padding:14px;position:sticky;top:0;z-index:100}`;
+    html += `.toolbar-top{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}`;
+    html += `.toolbar-top button{padding:8px 20px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer}`;
+    html += `.btn-print{background:#dc2626;color:#fff}.btn-dl{background:#059669;color:#fff}`;
+    html += `.page-select{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;align-items:center}`;
+    html += `.page-select label{display:flex;align-items:center;gap:3px;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:rgba(255,255,255,.1)}`;
+    html += `.page-select input:checked+span{color:#10b981;font-weight:800}`;
+    html += `.label{width:100mm;height:75mm;border:1.5px solid #000;position:relative;overflow:hidden;page-break-after:always;margin:0 auto 3mm}`;
+    html += `.label:last-child{margin-bottom:0}`;
+    html += `.label-num{position:absolute;top:2px;left:4px;background:#d97706;color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:0 0 4px 0;z-index:2}`;
+    html += `.sort-code{text-align:center;padding:2px 8px;font-size:18px;font-weight:900;letter-spacing:1px;border-bottom:1px solid #000}`;
+    html += `.bc-wrap{text-align:center;padding:2px 15px 0;border-bottom:1.5px solid #000}`;
+    html += `.bc-wrap svg{width:92%;height:45px}`;
+    html += `.pno-row{font-size:12px;font-weight:900;text-align:center;letter-spacing:1.5px;padding:2px 0;border-bottom:1.5px solid #000;background:#f8f8f8}`;
+    html += `.dst-bar{background:#333;color:#fff;padding:2px 8px;font-size:8px;font-weight:700;letter-spacing:1px}`;
+    html += `.body-area{padding:4px 8px 2px;border-bottom:1px solid #000;min-height:90px;position:relative}`;
+    html += `.src-line{font-size:7.5px;color:#555;line-height:1.4;margin-bottom:2px}`;
+    html += `.dst-name{font-size:10px;font-weight:800;margin-top:2px}`;
+    html += `.dst-phone{font-size:12px;font-weight:900;letter-spacing:0.5px}`;
+    html += `.dst-addr{font-size:8.5px;font-weight:700;line-height:1.3}`;
+    html += `.qr-box{position:absolute;right:4px;top:50px;text-align:center}`;
+    html += `.qr-box canvas{width:58px;height:58px}`;
+    html += `.cod-row{border-bottom:1px solid #000;display:flex;align-items:stretch;min-height:24px}`;
+    html += `.cod-tag{background:#000;color:#fff;font-size:11px;font-weight:900;padding:4px 8px;display:flex;align-items:center}`;
+    html += `.cod-val{flex:1;font-size:15px;font-weight:900;padding:3px 8px;display:flex;align-items:center}`;
+    html += `.note-row{padding:3px 8px;font-size:10px;color:#000;border-bottom:1px solid #eee;font-weight:700}`;
+    html += `.foot{font-size:6.5px;color:#999;padding:2px 8px;display:flex;justify-content:space-between}`;
+    html += `</style></head><body>`;
+
+    // Toolbar
+    html += `<div class="no-print toolbar"><div class="toolbar-top">`;
+    html += `<button class="btn-print" onclick="printSelected()">🖨️ ปริ้นที่เลือก</button>`;
+    html += `<button class="btn-dl" onclick="savePDF()">📥 ดาวน์โหลด PDF</button>`;
+    html += `<span style="font-size:12px">ทั้งหมด ${total} ใบ</span>`;
+    html += `</div>`;
+    html += `<div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap">`;
+    html += `<button onclick="toggleAll(true)" style="padding:4px 12px;border:1px solid rgba(255,255,255,.3);border-radius:6px;background:transparent;color:#10b981;font-size:11px;font-weight:700;cursor:pointer">☑ เลือกทั้งหมด</button>`;
+    html += `<button onclick="toggleAll(false)" style="padding:4px 12px;border:1px solid rgba(255,255,255,.3);border-radius:6px;background:transparent;color:#ef4444;font-size:11px;font-weight:700;cursor:pointer">☐ ยกเลิกทั้งหมด</button>`;
+    html += `</div>`;
+    html += `<div class="page-select" id="pageSelect">`;
+    for (let i = 0; i < total; i++) {
+      html += `<label><input type="checkbox" checked data-idx="${i}" onchange="updateLabel(${i},this.checked)"/><span>${i + 1}</span></label>`;
+    }
+    html += `</div></div>`;
+
+    // Labels
+    targets.forEach((p, idx) => {
       const sc = p.flash_sort_code || "";
-      const pno = p.flash_pno;
-      return `<div class="label">
-        <div class="sort-row"><div class="sort-num">${idx + 1}</div><div class="sort-code">${sc || "FLASH EXPRESS"}</div></div>
-        <div class="barcode-row"><canvas id="bc-${idx}" class="barcode-img" data-pno="${pno}"></canvas></div>
-        <div class="tracking-row">${pno}</div>
-        <div class="dst-row"><b>DST</b> &nbsp;&nbsp; ${p.receiver_district || ""} — ${p.receiver_province || ""}</div>
-        <div class="sender-row">ผู้ส่ง ${p.sender_name} ${p.sender_phone} ${p.sender_address || ""}</div>
-        <div class="recv-row">
-          <div class="recv-info">
-            <div class="recv-name">ผู้รับ ${p.receiver_name}</div>
-            <div class="recv-phone">${maskPhone(p.receiver_phone)}</div>
-            <div class="recv-addr">${p.receiver_address || ""}<br/>${p.receiver_subdistrict || ""}${p.receiver_subdistrict ? ", " : ""}${p.receiver_district || ""}<br/>${p.receiver_province || ""} ${p.receiver_postal || ""}</div>
-          </div>
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${pno}&margin=0" class="qr-img" />
-        </div>
-        ${p.cod_enabled ? `<div class="cod-row"><span class="cod-badge">COD</span><span class="cod-text">เก็บเงินค่าสินค้า COD ${Number(p.cod_amount || 0).toLocaleString()}</span></div>` : ""}
-        ${p.remark ? `<div class="note-row">Note: ${p.remark}</div>` : ""}
-        <div class="footer-row"><span>Print-: ${now}</span><span>${idx + 1}/${total}</span><span>THE MT</span></div>
-      </div>`;
-    }).join("\n");
+      const pno = p.flash_pno || "";
+      const codVal = Number(p.cod_amount || 0);
+      html += `<div class="label" id="lbl${idx}">`;
+      html += `<div class="label-num no-print">${idx + 1}</div>`;
+      html += `<div class="sort-code">${sc || "FLASH EXPRESS"}</div>`;
+      html += `<div class="bc-wrap"><svg id="bc${idx}"></svg></div>`;
+      html += `<div class="pno-row">${pno}</div>`;
+      html += `<div class="dst-bar">DST &nbsp; ${p.receiver_district || ""} — ${p.receiver_province || ""}</div>`;
+      html += `<div class="body-area">`;
+      html += `<div class="src-line">ผู้ส่ง ${p.sender_name} ${p.sender_phone} ${p.sender_address || ""}</div>`;
+      html += `<div class="dst-name">ผู้รับ ${p.receiver_name}</div>`;
+      html += `<div class="dst-phone">${maskPhone(p.receiver_phone)}</div>`;
+      html += `<div class="dst-addr">${p.receiver_address || ""}<br>${p.receiver_subdistrict || ""}${p.receiver_subdistrict ? ", " : ""}${p.receiver_district || ""}<br>${p.receiver_province || ""} ${p.receiver_postal || ""}</div>`;
+      html += `<div class="qr-box"><canvas id="qr${idx}" width="116" height="116"></canvas></div>`;
+      html += `</div>`;
+      html += `<div class="cod-row">`;
+      if (p.cod_enabled && codVal > 0) {
+        html += `<div class="cod-tag">COD</div><div class="cod-val">เก็บเงินค่าสินค้า COD ${codVal.toLocaleString()}</div>`;
+      } else {
+        html += `<div class="cod-val" style="font-size:10px;color:#666">—</div>`;
+      }
+      html += `</div>`;
+      if (p.remark) html += `<div class="note-row"><b>Note:</b> ${p.remark}</div>`;
+      html += `<div class="foot"><span>Print-: ${now}</span><span>${idx + 1}/${total}</span><span>THE MT</span></div>`;
+      html += `</div>`;
+    });
+
+    // Scripts
+    html += `<script>`;
+    html += `function renderAll(){if(typeof JsBarcode==="undefined"||typeof qrcode==="undefined"){setTimeout(renderAll,200);return;}`;
+    targets.forEach((p, i) => {
+      const pno = (p.flash_pno || "").replace(/"/g, "");
+      html += `try{JsBarcode("#bc${i}","${pno}",{format:"CODE128",width:2.2,height:45,displayValue:false,margin:0});}catch(e){}`;
+      html += `try{var q=qrcode(0,"M");q.addData("${pno}");q.make();var c=document.getElementById("qr${i}");if(c){var ctx=c.getContext("2d");var sz=q.getModuleCount();var cs=Math.floor(116/sz);for(var r=0;r<sz;r++)for(var cl=0;cl<sz;cl++)if(q.isDark(r,cl)){ctx.fillStyle="#000";ctx.fillRect(cl*cs,r*cs,cs,cs);}}}catch(e){}`;
+    });
+    html += `}`;
+    html += `function updateLabel(idx,checked){var el=document.getElementById("lbl"+idx);if(el){if(checked){el.classList.remove("hide-print");el.style.opacity="1";}else{el.classList.add("hide-print");el.style.opacity="0.3";}}}`;
+    html += `function toggleAll(val){document.querySelectorAll("#pageSelect input").forEach(function(cb){cb.checked=val;updateLabel(parseInt(cb.dataset.idx),val);})}`;
+    html += `function printSelected(){window.print();}`;
+    html += `async function savePDF(){var btn=document.querySelector(".btn-dl");var labels=document.querySelectorAll(".label:not(.hide-print)");if(labels.length===0){alert("ไม่มีใบที่เลือก");return;}btn.innerHTML="⏳ 0%";btn.disabled=true;try{var pdf=new jspdf.jsPDF({orientation:"landscape",unit:"mm",format:[100,75]});for(var i=0;i<labels.length;i++){if(i>0)pdf.addPage([100,75],"landscape");var canvas=await html2canvas(labels[i],{scale:3,useCORS:true,backgroundColor:"#fff",width:378,height:283});var imgData=canvas.toDataURL("image/jpeg",0.95);pdf.addImage(imgData,"JPEG",0,0,100,75);var pct=Math.round((i+1)/labels.length*100);btn.innerHTML="⏳ "+pct+"% ("+(i+1)+"/"+labels.length+")";}pdf.save("flash-labels-"+labels.length+".pdf");btn.innerHTML="✅ เสร็จ!";setTimeout(function(){btn.innerHTML="📥 ดาวน์โหลด PDF";btn.disabled=false;},2000);}catch(e){alert("❌ สร้าง PDF ผิดพลาด: "+e.message);btn.innerHTML="📥 ดาวน์โหลด PDF";btn.disabled=false;}}`;
+    html += `renderAll();`;
+    html += `<\/script></body></html>`;
 
     const win = window.open("", "_blank");
-    win.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="UTF-8">
-    <title>ใบปะหน้า Flash Express (${total} ใบ)</title>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
-    <style>
-      *{margin:0;padding:0;box-sizing:border-box}
-      body{font-family:'IBM Plex Sans Thai',sans-serif;background:#e5e7eb}
-      .toolbar{position:sticky;top:0;z-index:100;background:#fff;padding:12px 24px;border-bottom:2px solid #e2e8f0;display:flex;align-items:center;gap:12px;justify-content:center}
-      .toolbar button{padding:10px 24px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
-      .btn-print{background:#dc2626;color:#fff}
-      .btn-download{background:#059669;color:#fff}
-      .page-wrap{display:flex;flex-direction:column;align-items:center;padding:24px;gap:24px}
-      .label{width:100mm;height:75mm;background:#fff;border:1.5px solid #000;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 4px 24px rgba(0,0,0,.18)}
-      .sort-row{background:#333;color:#fff;display:flex;align-items:stretch;height:8mm}
-      .sort-num{background:#e67e22;color:#fff;font-size:14pt;font-weight:900;display:flex;align-items:center;justify-content:center;min-width:10mm}
-      .sort-code{flex:1;display:flex;align-items:center;justify-content:center;font-size:20pt;font-weight:900;letter-spacing:1px}
-      .barcode-row{text-align:center;height:16mm;overflow:hidden;display:flex;align-items:center;justify-content:center}
-      .barcode-img{max-width:94mm;height:14mm;display:block}
-      .tracking-row{background:#f0f0f0;text-align:center;font-size:14pt;font-weight:900;font-family:'Courier New',monospace;letter-spacing:2.5px;padding:1.2mm 0;border-top:0.5mm solid #bbb;border-bottom:0.5mm solid #bbb}
-      .dst-row{background:#666;color:#fff;font-size:9pt;font-weight:700;padding:0.8mm 3mm}
-      .sender-row{font-size:6.5pt;color:#555;padding:0.5mm 3mm;border-bottom:0.3mm solid #ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .recv-row{display:flex;flex:1;padding:1mm 3mm;gap:2mm;overflow:hidden}
-      .recv-info{flex:1;min-width:0;overflow:hidden}
-      .recv-name{font-size:10pt;font-weight:800}
-      .recv-phone{font-size:15pt;font-weight:900;font-family:'Courier New',monospace;line-height:1.1}
-      .recv-addr{font-size:7.5pt;line-height:1.35;margin-top:0.5mm}
-      .qr-img{width:20mm;height:20mm;align-self:center;flex-shrink:0}
-      .cod-row{background:#000;display:flex;align-items:center;padding:1.5mm 3mm;gap:3mm}
-      .cod-badge{background:#fff;color:#000;font-size:8pt;font-weight:900;padding:0.8mm 3mm}
-      .cod-text{color:#fff;font-size:14pt;font-weight:900}
-      .note-row{font-size:9pt;font-weight:700;padding:0.8mm 3mm;border-top:0.3mm solid #999;background:#f9f9f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .footer-row{display:flex;justify-content:space-between;font-size:5.5pt;color:#999;padding:0.3mm 3mm;border-top:0.3mm solid #ddd;margin-top:auto}
-      @media print{.toolbar{display:none}body{background:#fff}.page-wrap{padding:0;gap:0}.label{box-shadow:none;border-width:0.5mm;page-break-after:always}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-      @page{size:100mm 75mm;margin:0}
-    </style>
-    </head><body>
-      <div class="toolbar">
-        <span style="font-weight:700;font-size:16px">🖨️ ใบปะหน้า Flash Express — ${total} ใบ</span>
-        <button class="btn-print" onclick="window.print()">🖨️ ปริ้น</button>
-        <button class="btn-download" onclick="window.print()">📥 ดาวน์โหลด PDF</button>
-      </div>
-      <div class="page-wrap">${labels}</div>
-      <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-      <script>
-        document.querySelectorAll('canvas[data-pno]').forEach(function(c){
-          try{JsBarcode(c,c.dataset.pno,{format:'CODE128',width:2,height:120,displayValue:false,margin:2,background:'#ffffff'});}catch(e){c.style.border='1px dashed red';}
-        });
-        var imgs=document.querySelectorAll('img'),loaded=0,total=imgs.length;
-        var status=document.createElement('div');
-        status.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;z-index:999;font-family:inherit';
-        status.textContent='กำลังโหลดรูป 0/'+total+'...';
-        if(total>0)document.body.appendChild(status);
-        function checkDone(){
-          loaded++;
-          status.textContent='กำลังโหลดรูป '+loaded+'/'+total+'...';
-          if(loaded>=total){status.textContent='✅ โหลดครบแล้ว — พร้อมปริ้น';setTimeout(function(){status.remove()},2000);}
-        }
-        imgs.forEach(function(img){if(img.complete&&img.naturalWidth>0){checkDone();}else{img.onload=checkDone;img.onerror=function(){this.style.border='1px dashed red';checkDone();};}});
-        if(total===0&&status.parentNode)status.remove();
-      </script>
-    </body></html>`);
+    win.document.write(html);
     win.document.close();
   };
 
