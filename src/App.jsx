@@ -1162,18 +1162,18 @@ export default function FlashBackend() {
     html += `.bc-wrap svg{width:92%;height:45px}`;
     html += `.pno-row{font-size:12px;font-weight:900;text-align:center;letter-spacing:1.5px;padding:2px 0;border-bottom:1.5px solid #000;background:#f8f8f8}`;
     html += `.dst-bar{background:#333;color:#fff;padding:2px 8px;font-size:8px;font-weight:700;letter-spacing:1px}`;
-    html += `.body-area{padding:4px 8px 2px;border-bottom:1px solid #000;min-height:120px;position:relative}`;
+    html += `.body-area{padding:4px 8px 2px;border-bottom:1px solid #000;min-height:126px;position:relative}`;
     html += `.src-line{font-size:7.5px;color:#555;line-height:1.4;margin-bottom:2px}`;
     html += `.dst-name{font-size:10px;font-weight:800;margin-top:2px}`;
     html += `.dst-phone{font-size:12px;font-weight:900;letter-spacing:0.5px}`;
     html += `.dst-addr{font-size:8.5px;font-weight:700;line-height:1.3}`;
-    html += `.qr-box{position:absolute;right:4px;top:46px;text-align:center}`;
-    html += `.qr-box canvas{width:72px;height:72px}`;
-    html += `.cod-row{border-bottom:1px solid #000;display:flex;align-items:stretch;min-height:24px}`;
-    html += `.cod-tag{background:#000;color:#fff;font-size:11px;font-weight:900;padding:4px 8px;display:flex;align-items:center}`;
-    html += `.cod-val{flex:1;font-size:15px;font-weight:900;padding:3px 8px;display:flex;align-items:center}`;
-    html += `.note-row{padding:3px 8px;font-size:10px;color:#000;border-bottom:1px solid #eee;font-weight:700}`;
-    html += `.foot{font-size:6.5px;color:#999;padding:2px 8px;display:flex;justify-content:space-between}`;
+    html += `.qr-box{position:absolute;right:4px;top:36px;text-align:center}`;
+    html += `.qr-box canvas{width:85px;height:85px}`;
+    html += `.cod-row{border-bottom:1px solid #000;display:flex;align-items:stretch;min-height:22px}`;
+    html += `.cod-tag{background:#000;color:#fff;font-size:11px;font-weight:900;padding:3px 8px;display:flex;align-items:center}`;
+    html += `.cod-val{flex:1;font-size:15px;font-weight:900;padding:2px 8px;display:flex;align-items:center}`;
+    html += `.note-row{padding:2px 8px;font-size:10px;color:#000;border-bottom:1px solid #eee;font-weight:700}`;
+    html += `.foot{font-size:6.5px;color:#999;padding:1px 8px;display:flex;justify-content:space-between}`;
     html += `</style></head><body>`;
 
     // Toolbar
@@ -1208,7 +1208,7 @@ export default function FlashBackend() {
       html += `<div class="dst-name">ผู้รับ ${p.receiver_name}</div>`;
       html += `<div class="dst-phone">${maskPhone(p.receiver_phone)}</div>`;
       html += `<div class="dst-addr">${p.receiver_address || ""}<br>${p.receiver_subdistrict || ""}${p.receiver_subdistrict ? ", " : ""}${p.receiver_district || ""}<br>${p.receiver_province || ""} ${p.receiver_postal || ""}</div>`;
-      html += `<div class="qr-box"><canvas id="qr${idx}" width="144" height="144"></canvas></div>`;
+      html += `<div class="qr-box"><canvas id="qr${idx}" width="170" height="170"></canvas></div>`;
       html += `</div>`;
       html += `<div class="cod-row">`;
       if (p.cod_enabled && codVal > 0) {
@@ -1228,7 +1228,7 @@ export default function FlashBackend() {
     targets.forEach((p, i) => {
       const pno = (p.flash_pno || "").replace(/"/g, "");
       html += `try{JsBarcode("#bc${i}","${pno}",{format:"CODE128",width:2.2,height:45,displayValue:false,margin:0});}catch(e){}`;
-      html += `try{var q=qrcode(0,"M");q.addData("${pno}");q.make();var c=document.getElementById("qr${i}");if(c){var ctx=c.getContext("2d");var sz=q.getModuleCount();var cs=Math.floor(144/sz);for(var r=0;r<sz;r++)for(var cl=0;cl<sz;cl++)if(q.isDark(r,cl)){ctx.fillStyle="#000";ctx.fillRect(cl*cs,r*cs,cs,cs);}}}catch(e){}`;
+      html += `try{var q=qrcode(0,"M");q.addData("${pno}");q.make();var c=document.getElementById("qr${i}");if(c){var ctx=c.getContext("2d");var sz=q.getModuleCount();var cs=Math.floor(170/sz);for(var r=0;r<sz;r++)for(var cl=0;cl<sz;cl++)if(q.isDark(r,cl)){ctx.fillStyle="#000";ctx.fillRect(cl*cs,r*cs,cs,cs);}}}catch(e){}`;
     });
     html += `}`;
     html += `function updateLabel(idx,checked){var el=document.getElementById("lbl"+idx);if(el){if(checked){el.classList.remove("hide-print");el.style.opacity="1";}else{el.classList.add("hide-print");el.style.opacity="0.3";}}}`;
