@@ -110,6 +110,7 @@ const sb = {
   insert: (t, b) => sb.query(t, { method: "POST", body: b }),
   update: (t, id, b) => sb.query(t, { method: "PATCH", body: b, filters: `id=eq.${id}` }),
   delete: (t, id) => sb.query(t, { method: "DELETE", filters: `id=eq.${id}` }),
+  broadcastChange: async () => { try { await sb.query("fx_settings", { method: "PATCH", body: { value: String(Date.now()) }, filters: "key=eq.last_updated" }); } catch {} },
   realtime: (table, cb) => {
     try {
       const wsUrl = SUPABASE_URL.replace("https://", "wss://").replace("http://", "ws://") + "/realtime/v1/websocket?apikey=" + SUPABASE_ANON_KEY + "&vsn=1.0.0";
@@ -515,7 +516,7 @@ function ParcelForm({ parcel, user, shops, onSave, onClose }) {
   const handleSave = async () => {
     if (!form.receiver_name || !form.receiver_phone) { alert("กรุณากรอกชื่อ+เบอร์ผู้รับ"); return; }
     setSaving(true);
-    try { const d = { ...form }; delete d.id; delete d.created_at; delete d.updated_at; if (isEdit) { await sb.update("fx_parcels", parcel.id, d); } else { d.parcel_no = generateParcelNo(); d.status = "draft"; d.created_by = user.id; d.created_by_name = user.display_name; await sb.insert("fx_parcels", d); } onSave(); } catch (e) { alert(e.message); }
+    try { const d = { ...form }; delete d.id; delete d.created_at; delete d.updated_at; if (isEdit) { await sb.update("fx_parcels", parcel.id, d); } else { d.parcel_no = generateParcelNo(); d.status = "draft"; d.created_by = user.id; d.created_by_name = user.display_name; await sb.insert("fx_parcels", d); } sb.broadcastChange(); onSave(); } catch (e) { alert(e.message); }
     setSaving(false);
   };
   const I = { width: "100%", padding: "10px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 14, outline: "none", fontFamily: "inherit" };
@@ -726,6 +727,7 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
       if (i % 5 === 4) await new Promise(r => setTimeout(r, 500));
     }
     setDone(true);
+    sb.broadcastChange();
     const failed = selected.length - success;
     if (failed > 0) alert(`นำเข้าสำเร็จ ${success}/${selected.length} รายการ\n\n${failed} รายการล้มเหลว — ตรวจสอบข้อมูลในไฟล์`);
     setTimeout(() => onSave(), 1000);
@@ -983,6 +985,24 @@ export default function FlashBackend() {
 
   useEffect(() => { if (user) loadParcels(); }, [user, loadParcels]);
 
+  // ═══ REALTIME — broadcast timestamp polling (เหมือน crmtel) ═══
+  const lastTs = useRef("0");
+  useEffect(() => {
+    if (!user || isDemo) return;
+    const poll = setInterval(async () => {
+      try {
+        const rows = await sb.select("fx_settings", { filters: "key=eq.last_updated" });
+        const ts = rows?.[0]?.value || "0";
+        if (ts !== lastTs.current && lastTs.current !== "0") {
+          loadParcels();
+          loadShops();
+        }
+        lastTs.current = ts;
+      } catch {}
+    }, 2000);
+    return () => clearInterval(poll);
+  }, [user, isDemo, loadParcels, loadShops]);
+
   // Load shops
   const loadShops = useCallback(async () => {
     if (isDemo) { setShops([{ id: "s1", name: "ร้าน ABC Shop", phone: "081-234-5678", address: "123 สุขุมวิท", province: "กรุงเทพมหานคร", is_default: true, is_active: true }, { id: "s2", name: "ร้าน XYZ Online", phone: "089-999-8888", address: "456 พหลโยธิน", province: "เชียงใหม่", is_default: false, is_active: true }]); return; }
@@ -1011,13 +1031,14 @@ export default function FlashBackend() {
   const statsData = useMemo(() => { const list = selectedShopFilter ? parcels.filter(p => p.shop_id === selectedShopFilter) : parcels; return list; }, [parcels, selectedShopFilter]);
   const stats = useMemo(() => ({ total: statsData.length, draft: statsData.filter(p => p.status === "draft").length, created: statsData.filter(p => p.status === "created").length, printed: statsData.filter(p => p.status === "printed").length, cancelled: statsData.filter(p => p.status === "cancelled").length, codTotal: statsData.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [statsData]);
 
-  const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); setParcels(prev => prev.filter(x => x.id !== p.id)); showToast("ลบสำเร็จ"); } catch (e) { alert(e.message); } };
+  const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); setParcels(prev => prev.filter(x => x.id !== p.id)); showToast("ลบสำเร็จ"); sb.broadcastChange(); } catch (e) { alert(e.message); } };
   const markPrinted = async (p) => {
     setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: true, status: "printed" } : x));
     if (!isDemo) {
       try {
         await sb.update("fx_parcels", p.id, { label_printed: true, status: "printed" });
         console.log("markPrinted OK:", p.id);
+        sb.broadcastChange();
       } catch (e) {
         console.error("markPrinted FAILED:", e.message);
         alert("บันทึกสถานะปริ้นไม่ได้: " + e.message);
@@ -1057,6 +1078,7 @@ export default function FlashBackend() {
         if (!isDemo) await sb.update("fx_parcels", p.id, updates);
         setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
         showToast(`สร้างเลข Tracking สำเร็จ! ${updates.flash_pno}`);
+        sb.broadcastChange();
       } else {
         alert(`❌ Flash API Error (code: ${result.code}):\n${result.message || ""}\n${result.data ? "\nรายละเอียด: " + JSON.stringify(result.data) : ""}\n\n📤 ผู้ส่ง: ${p.sender_name || "❌"} | ${p.sender_phone || "❌"}\nที่อยู่ส่ง: ${p.sender_address || "❌"} | ${p.sender_province || "❌"} | ปณ.${p.sender_postal || "❌"}\n\n📥 ผู้รับ: ${p.receiver_name} | ${p.receiver_phone}\nจังหวัด: ${p.receiver_province || "❌"} | อำเภอ: ${p.receiver_district || "❌"}\nตำบล: ${p.receiver_subdistrict || "❌"} | ปณ.${p.receiver_postal || "❌"}\nที่อยู่: ${p.receiver_address || "❌"}`);
       }
@@ -1077,6 +1099,7 @@ export default function FlashBackend() {
         if (!isDemo) await sb.update("fx_parcels", p.id, updates);
         setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
         showToast(`ยกเลิกเลขพัสดุ ${p.flash_pno} สำเร็จ`);
+        sb.broadcastChange();
       } else {
         alert(`❌ ยกเลิกไม่สำเร็จ\n\nCode: ${result.code}\nMessage: ${result.message || "ไม่มีข้อความ"}\n\nรายละเอียด: ${JSON.stringify(result.data || result, null, 2)}\n\n⚠️ พัสดุอาจถูกรับแล้ว หรือยกเลิกไม่ได้`);
         // ถามว่าต้องการยกเลิกในระบบอย่างเดียวไหม
@@ -1085,6 +1108,7 @@ export default function FlashBackend() {
           if (!isDemo) await sb.update("fx_parcels", p.id, updates);
           setParcels(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
           showToast(`ยกเลิกในระบบแล้ว (ไม่ได้ยกเลิกฝั่ง Flash)`);
+          sb.broadcastChange();
         }
       }
     } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้:\n" + e.message); }
@@ -1117,6 +1141,7 @@ export default function FlashBackend() {
     }
     setGlobalLoading(null);
     setBatchProgress(null);
+    sb.broadcastChange();
     if (errors.length) {
       alert(`❌ สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ\n\nรายการที่ไม่สำเร็จ:\n${errors.slice(0, 20).join("\n")}${errors.length > 20 ? "\n... อีก " + (errors.length - 20) + " รายการ" : ""}`);
     } else {
@@ -1254,6 +1279,7 @@ export default function FlashBackend() {
     }
     setParcels(prev => prev.map(x => targets.some(t => t.id === x.id) ? { ...x, label_printed: true, status: "printed" } : x));
     showToast(`ปริ้นสำเร็จ ${targets.length} ใบ`);
+    sb.broadcastChange();
     setSelectedIds(new Set());
   };
 
@@ -1270,6 +1296,7 @@ export default function FlashBackend() {
     setParcels(prev => prev.filter(x => !selectedIds.has(x.id)));
     setGlobalLoading(null);
     showToast(`ลบสำเร็จ ${success}/${targets.length} รายการ`);
+    sb.broadcastChange();
     setSelectedIds(new Set());
   };
 
