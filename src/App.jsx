@@ -985,6 +985,13 @@ export default function FlashBackend() {
 
   useEffect(() => { if (user) loadParcels(); }, [user, loadParcels]);
 
+  // Load shops
+  const loadShops = useCallback(async () => {
+    if (isDemo) { setShops([{ id: "s1", name: "ร้าน ABC Shop", phone: "081-234-5678", address: "123 สุขุมวิท", province: "กรุงเทพมหานคร", is_default: true, is_active: true }, { id: "s2", name: "ร้าน XYZ Online", phone: "089-999-8888", address: "456 พหลโยธิน", province: "เชียงใหม่", is_default: false, is_active: true }]); return; }
+    try { const d = await sb.select("fx_shops", { order: "created_at.asc" }); setShops(d || []); } catch {}
+  }, [isDemo]);
+  useEffect(() => { if (user) loadShops(); }, [user, loadShops]);
+
   // ═══ REALTIME — broadcast timestamp polling (เหมือน crmtel) ═══
   const lastTs = useRef("0");
   useEffect(() => {
@@ -1002,13 +1009,6 @@ export default function FlashBackend() {
     }, 2000);
     return () => clearInterval(poll);
   }, [user, isDemo, loadParcels, loadShops]);
-
-  // Load shops
-  const loadShops = useCallback(async () => {
-    if (isDemo) { setShops([{ id: "s1", name: "ร้าน ABC Shop", phone: "081-234-5678", address: "123 สุขุมวิท", province: "กรุงเทพมหานคร", is_default: true, is_active: true }, { id: "s2", name: "ร้าน XYZ Online", phone: "089-999-8888", address: "456 พหลโยธิน", province: "เชียงใหม่", is_default: false, is_active: true }]); return; }
-    try { const d = await sb.select("fx_shops", { order: "created_at.asc" }); setShops(d || []); } catch {}
-  }, [isDemo]);
-  useEffect(() => { if (user) loadShops(); }, [user, loadShops]);
 
   const STATUS_TABS = [
     { key: "ALL", label: "ทั้งหมด", icon: "📋", color: "#475569" },
