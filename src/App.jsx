@@ -1306,11 +1306,190 @@ export default function FlashBackend() {
   const MENU = [
     { key: "dashboard", label: "Dashboard", icon: "📊" },
     { key: "parcels", label: "การจัดส่ง", icon: "📦" },
+    { key: "report", label: "รายงานสถานะ", icon: "🚚" },
     { key: "import", label: "Import ไฟล์", icon: "📥" },
     { key: "export", label: "Export ข้อมูล", icon: "📤" },
     { key: "shops", label: "ร้านค้า", icon: "🏪" },
     ...(perm.users ? [{ key: "users", label: "จัดการผู้ใช้", icon: "👥" }] : []),
   ];
+
+  // ═══ REPORT PAGE — รายงานสถานะพัสดุ Flash ═══
+  const ReportPage = () => {
+    const [rptFilter, setRptFilter] = useState("ALL");
+    const [rptSearch, setRptSearch] = useState("");
+    const [rptShop, setRptShop] = useState("");
+    const [rptPage, setRptPage] = useState(0);
+    const RPT_PER = 25;
+
+    // เฉพาะพัสดุที่มีเลข Tracking
+    const tracked = useMemo(() => parcels.filter(p => p.flash_pno), [parcels]);
+
+    const FLASH_TABS = [
+      { key: "ALL", label: "ทั้งหมด", icon: "📋", color: "#4f46e5" },
+      { key: "สร้างรายการ", label: "สร้างรายการ", icon: "📝", color: "#f59e0b" },
+      { key: "รับพัสดุแล้ว", label: "รับพัสดุแล้ว", icon: "📬", color: "#0ea5e9" },
+      { key: "อยู่ในระบบขนส่ง", label: "ในระบบขนส่ง", icon: "🚛", color: "#8b5cf6" },
+      { key: "กำลังจัดส่ง", label: "กำลังจัดส่ง", icon: "🛵", color: "#3b82f6" },
+      { key: "เซ็นรับแล้ว", label: "เซ็นรับแล้ว", icon: "✅", color: "#10b981" },
+      { key: "ส่งคืน", label: "ส่งคืน", icon: "↩️", color: "#ef4444" },
+      { key: "คืนสำเร็จ", label: "คืนสำเร็จ", icon: "📦", color: "#6b7280" },
+    ];
+
+    const filtered = useMemo(() => {
+      let list = tracked;
+      if (rptShop) list = list.filter(p => p.shop_id === rptShop);
+      if (rptFilter !== "ALL") {
+        if (rptFilter === "สร้างรายการ") list = list.filter(p => !p.flash_status || p.flash_status === "" || p.flash_status === "สร้างรายการ");
+        else list = list.filter(p => p.flash_status === rptFilter);
+      }
+      if (rptSearch) {
+        const q = rptSearch.toLowerCase();
+        list = list.filter(p => (p.receiver_name || "").toLowerCase().includes(q) || (p.receiver_phone || "").includes(q) || (p.flash_pno || "").toLowerCase().includes(q));
+      }
+      return list;
+    }, [tracked, rptFilter, rptShop, rptSearch]);
+
+    const rptPaged = filtered.slice(rptPage * RPT_PER, (rptPage + 1) * RPT_PER);
+    const rptTotalPages = Math.ceil(filtered.length / RPT_PER);
+
+    // นับแยกสถานะ
+    const countByStatus = (key) => {
+      let list = rptShop ? tracked.filter(p => p.shop_id === rptShop) : tracked;
+      if (key === "ALL") return list.length;
+      if (key === "สร้างรายการ") return list.filter(p => !p.flash_status || p.flash_status === "" || p.flash_status === "สร้างรายการ").length;
+      return list.filter(p => p.flash_status === key).length;
+    };
+
+    const getStatusStyle = (fs) => {
+      const map = {
+        "รับพัสดุแล้ว": { bg: "#e0f2fe", color: "#0369a1" },
+        "อยู่ในระบบขนส่ง": { bg: "#ede9fe", color: "#6d28d9" },
+        "กำลังจัดส่ง": { bg: "#dbeafe", color: "#1d4ed8" },
+        "เซ็นรับแล้ว": { bg: "#d1fae5", color: "#065f46" },
+        "ส่งคืน": { bg: "#fee2e2", color: "#991b1b" },
+        "คืนสำเร็จ": { bg: "#f3f4f6", color: "#374151" },
+      };
+      return map[fs] || { bg: "#fef3c7", color: "#92400e" };
+    };
+
+    return (
+      <div style={{ padding: 24 }}>
+        <div style={{ marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#111" }}>🚚 รายงานสถานะพัสดุ Flash</h2>
+          <p style={{ margin: "4px 0 0", fontSize: 14, color: "#6b7280" }}>ติดตามสถานะขนส่งแบบเรียลไทม์ — อัพเดตอัตโนมัติทุก 5 นาที</p>
+        </div>
+
+        {/* Summary Cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 20 }}>
+          {FLASH_TABS.map(t => {
+            const cnt = countByStatus(t.key);
+            const active = rptFilter === t.key;
+            return (
+              <div key={t.key} onClick={() => { setRptFilter(t.key); setRptPage(0); }} style={{
+                background: active ? t.color : "#fff", color: active ? "#fff" : "#111",
+                borderRadius: 12, padding: "14px 16px", border: active ? "none" : "1px solid #e5e7eb",
+                cursor: "pointer", transition: "all .15s",
+              }}>
+                <div style={{ fontSize: 11, opacity: active ? .85 : .6, marginBottom: 4 }}>{t.icon} {t.label}</div>
+                <div style={{ fontSize: 24, fontWeight: 800 }}>{cnt}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Search + Filter */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, position: "relative", minWidth: 200 }}>
+            <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: .4 }}>🔍</span>
+            <input value={rptSearch} onChange={e => { setRptSearch(e.target.value); setRptPage(0); }} placeholder="ค้นหา ชื่อ, เบอร์, เลข Tracking..." style={{ width: "100%", padding: "10px 12px 10px 36px", border: "1.5px solid #e5e7eb", borderRadius: 10, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
+          </div>
+          {shops?.length > 0 && (
+            <select value={rptShop} onChange={e => { setRptShop(e.target.value); setRptPage(0); }} style={{ padding: "10px 14px", border: "1.5px solid #e5e7eb", borderRadius: 10, fontSize: 13, fontFamily: "inherit", fontWeight: 600, color: rptShop ? "#dc2626" : "#6b7280" }}>
+              <option value="">🏪 ทุกร้าน</option>
+              {shops.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          )}
+          <button onClick={loadParcels} style={{ padding: "10px 16px", background: "#f3f4f6", border: "1px solid #e5e7eb", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>🔄 รีเฟรช</button>
+        </div>
+
+        {/* Table */}
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+          {!rptPaged.length ? (
+            <div style={{ padding: 50, textAlign: "center", color: "#9ca3af" }}>
+              <div style={{ fontSize: 36 }}>📭</div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginTop: 8 }}>ไม่พบพัสดุในสถานะนี้</div>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#f9fafb", borderBottom: "2px solid #e5e7eb" }}>
+                    {["#", "วันที่", "ลูกค้า", "เบอร์โทร", "เลข Tracking", "Sort Code", "สถานะ Flash", "สถานะระบบ", ...(perm.viewCOD ? ["COD"] : []), "ร้านค้า"].map((h, i) => (
+                      <th key={i} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#6b7280", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rptPaged.map((p, i) => {
+                    const fs = p.flash_status || "สร้างรายการ";
+                    const fStyle = getStatusStyle(fs);
+                    const sysStatus = { draft: "📝 เตรียม", created: "✅ สร้างเลข", printed: "🖨️ ปริ้น", cancelled: "❌ ยกเลิก" }[p.status] || p.status;
+                    const shop = shops?.find(s => s.id === p.shop_id);
+                    const d = new Date(p.created_at);
+                    return (
+                      <tr key={p.id} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 ? "#fafafa" : "#fff" }} onClick={() => setViewParcel(p)}>
+                        <td style={{ padding: "9px 12px", color: "#9ca3af", fontSize: 11 }}>{rptPage * RPT_PER + i + 1}</td>
+                        <td style={{ padding: "9px 12px", fontSize: 12, whiteSpace: "nowrap" }}>{d.toLocaleDateString("th-TH", { day: "2-digit", month: "short" })}</td>
+                        <td style={{ padding: "9px 12px", fontWeight: 600, cursor: "pointer", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.receiver_name}</td>
+                        <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
+                        <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: 12, color: "#0ea5e9", fontWeight: 600 }}>{p.flash_pno}</td>
+                        <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: 11, color: "#6b7280" }}>{p.flash_sort_code || "—"}</td>
+                        <td style={{ padding: "9px 12px" }}>
+                          <span style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: fStyle.bg, color: fStyle.color, whiteSpace: "nowrap" }}>{fs}</span>
+                        </td>
+                        <td style={{ padding: "9px 12px", fontSize: 12 }}>{sysStatus}</td>
+                        {perm.viewCOD && <td style={{ padding: "9px 12px", fontWeight: 700, color: p.cod_enabled ? "#b45309" : "#d1d5db" }}>{p.cod_enabled ? `฿${Number(p.cod_amount || 0).toLocaleString()}` : "—"}</td>}
+                        <td style={{ padding: "9px 12px", fontSize: 12, color: "#6b7280" }}>{shop?.name || "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {rptTotalPages > 1 && (
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, padding: 12, borderTop: "1px solid #f3f4f6" }}>
+              <button disabled={!rptPage} onClick={() => setRptPage(p => p - 1)} style={{ padding: "6px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: !rptPage ? "not-allowed" : "pointer", opacity: !rptPage ? .4 : 1, fontSize: 13 }}>◀ ก่อนหน้า</button>
+              <span style={{ fontSize: 12, color: "#6b7280" }}>หน้า {rptPage + 1}/{rptTotalPages} ({filtered.length} รายการ)</span>
+              <button disabled={rptPage >= rptTotalPages - 1} onClick={() => setRptPage(p => p + 1)} style={{ padding: "6px 14px", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", cursor: rptPage >= rptTotalPages - 1 ? "not-allowed" : "pointer", opacity: rptPage >= rptTotalPages - 1 ? .4 : 1, fontSize: 13 }}>ถัดไป ▶</button>
+            </div>
+          )}
+        </div>
+
+        {/* Summary Footer */}
+        <div style={{ marginTop: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ background: "#ecfdf5", borderRadius: 10, padding: "12px 20px", flex: 1, minWidth: 150 }}>
+            <div style={{ fontSize: 11, color: "#065f46", marginBottom: 2 }}>✅ จัดส่งสำเร็จ</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "#059669" }}>{countByStatus("เซ็นรับแล้ว")}</div>
+          </div>
+          <div style={{ background: "#dbeafe", borderRadius: 10, padding: "12px 20px", flex: 1, minWidth: 150 }}>
+            <div style={{ fontSize: 11, color: "#1e40af", marginBottom: 2 }}>🚛 อยู่ระหว่างจัดส่ง</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "#2563eb" }}>{countByStatus("รับพัสดุแล้ว") + countByStatus("อยู่ในระบบขนส่ง") + countByStatus("กำลังจัดส่ง")}</div>
+          </div>
+          <div style={{ background: "#fee2e2", borderRadius: 10, padding: "12px 20px", flex: 1, minWidth: 150 }}>
+            <div style={{ fontSize: 11, color: "#991b1b", marginBottom: 2 }}>↩️ ส่งคืน/คืนสำเร็จ</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "#dc2626" }}>{countByStatus("ส่งคืน") + countByStatus("คืนสำเร็จ")}</div>
+          </div>
+          <div style={{ background: "#fef3c7", borderRadius: 10, padding: "12px 20px", flex: 1, minWidth: 150 }}>
+            <div style={{ fontSize: 11, color: "#92400e", marginBottom: 2 }}>📝 รอดำเนินการ</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "#d97706" }}>{countByStatus("สร้างรายการ")}</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // ═══ DASHBOARD PAGE ═══
   const DashboardPage = () => {
@@ -1811,6 +1990,7 @@ export default function FlashBackend() {
           </>)}
 
           {activePage === "dashboard" && <DashboardPage />}
+          {activePage === "report" && <ReportPage />}
           {activePage === "import" && <ImportPage />}
           {activePage === "export" && <ExportPage />}
           {activePage === "shops" && <ShopsPage />}
