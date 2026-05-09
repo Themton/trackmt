@@ -964,7 +964,10 @@ export default function FlashBackend() {
   const [shops, setShops] = useState([]);
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [activePage, setActivePage] = useState("dashboard");
+  const [activePage, setActivePageRaw] = useState(() => {
+    try { return sessionStorage.getItem("fx_page") || "dashboard"; } catch { return "dashboard"; }
+  });
+  const setActivePage = (p) => { setActivePageRaw(p); try { sessionStorage.setItem("fx_page", p); } catch {} };
   const [selectedShopFilter, setSelectedShopFilter] = useState("");
   const PER_PAGE = 20;
   const isDemo = SUPABASE_URL.includes("YOUR_PROJECT");
