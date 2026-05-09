@@ -1042,15 +1042,18 @@ export default function FlashBackend() {
     setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: true, status: "printed" } : x));
     if (!isDemo) {
       try {
-        await sb.update("fx_parcels", p.id, { label_printed: true, status: "printed" });
-        console.log("markPrinted OK:", p.id);
+        const result = await sb.update("fx_parcels", p.id, { label_printed: true, status: "printed" });
         await sb.broadcastChange();
+        // ยืนยันว่าบันทึกสำเร็จ — reload หลัง delay
+        await new Promise(r => setTimeout(r, 500));
+        await loadParcels();
+        showToast("✅ เปลี่ยนเป็นปริ้นแล้ว");
       } catch (e) {
-        console.error("markPrinted FAILED:", e.message);
-        alert("บันทึกสถานะปริ้นไม่ได้: " + e.message);
+        alert("❌ บันทึกไม่ได้: " + e.message);
+        await loadParcels();
       }
     }
-    setTimeout(() => { mutating.current = false; }, 1000);
+    setTimeout(() => { mutating.current = false; }, 2000);
   };
 
   // สร้างเลข Tracking Flash Express
@@ -2192,7 +2195,7 @@ export default function FlashBackend() {
                             {perm.status && !p.flash_pno && <button title="สร้างเลข" onClick={() => createFlashOrder(p)} disabled={flashLoading === p.id} style={{ width: 26, height: 26, border: "1px solid #fbbf24", borderRadius: 4, background: flashLoading === p.id ? "#fef3c7" : "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{flashLoading === p.id ? "⏳" : "⚡"}</button>}
                             {perm.status && p.flash_pno && p.status !== "cancelled" && <button title="ยกเลิกเลขพัสดุ" onClick={() => cancelFlashOrder(p)} disabled={flashLoading === p.id} style={{ width: 26, height: 26, border: "1px solid #dc2626", borderRadius: 4, background: flashLoading === p.id ? "#fef2f2" : "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{flashLoading === p.id ? "⏳" : "❌"}</button>}
                             {perm.status && p.flash_pno && p.status === "created" && <button title="เปลี่ยนเป็นปริ้นแล้ว" onClick={() => markPrinted(p)} style={{ width: 26, height: 26, border: "1px solid #6366f1", borderRadius: 4, background: "#eef2ff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🖨️</button>}
-                            {perm.status && p.flash_pno && p.status === "printed" && <button title="เปลี่ยนกลับเป็นสร้างเลขแล้ว" onClick={async () => { mutating.current = true; setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: false, status: "created" } : x)); try { await sb.update("fx_parcels", p.id, { label_printed: false, status: "created" }); await sb.broadcastChange(); showToast("เปลี่ยนกลับเป็นสร้างเลขแล้ว"); } catch (e) { alert(e.message); } setTimeout(() => { mutating.current = false; }, 1000); }} style={{ width: 26, height: 26, border: "1px solid #f59e0b", borderRadius: 4, background: "#fffbeb", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>↩️</button>}
+                            {perm.status && p.flash_pno && p.status === "printed" && <button title="เปลี่ยนกลับเป็นสร้างเลขแล้ว" onClick={async () => { mutating.current = true; setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: false, status: "created" } : x)); try { await sb.update("fx_parcels", p.id, { label_printed: false, status: "created" }); await sb.broadcastChange(); await new Promise(r => setTimeout(r, 500)); await loadParcels(); showToast("เปลี่ยนกลับเป็นสร้างเลขแล้ว"); } catch (e) { alert(e.message); await loadParcels(); } setTimeout(() => { mutating.current = false; }, 2000); }} style={{ width: 26, height: 26, border: "1px solid #f59e0b", borderRadius: 4, background: "#fffbeb", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>↩️</button>}
                             {perm.edit && <button title="แก้ไข" onClick={() => { setEditParcel(p); setShowForm(true); }} style={{ width: 26, height: 26, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</button>}
                             {perm.delete && <button title="ลบ" onClick={() => handleDelete(p)} style={{ width: 26, height: 26, border: "1px solid #fca5a5", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑️</button>}
                             <button title="ดูรายละเอียด" onClick={() => setViewParcel(p)} style={{ width: 26, height: 26, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>👁️</button>
