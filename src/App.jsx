@@ -1286,20 +1286,20 @@ export default function FlashBackend() {
 
   const batchMarkPrinted = async () => {
     const targets = parcels.filter(p => selectedIds.has(p.id) && p.flash_pno && p.status === "created");
-    if (!targets.length) { alert("ไม่มีรายการที่เปลี่ยนได้ (ต้องมีเลข Tracking + สถานะสร้างเลขแล้ว)"); return; }
+    if (!targets.length) { alert("ไม่มีรายการที่เปลี่ยนได้\n(ต้องมีเลข Tracking + สถานะ \"สร้างเลขแล้ว\")"); return; }
     if (!confirm(`เปลี่ยนสถานะเป็น "ปริ้นแล้ว" ${targets.length} รายการ?`)) return;
     mutating.current = true;
-    setGlobalLoading({ msg: "กำลังเปลี่ยนสถานะ...", progress: 0 });
-    let success = 0;
-    for (let i = 0; i < targets.length; i++) {
-      setGlobalLoading({ msg: `กำลังเปลี่ยนสถานะ ${i + 1}/${targets.length}`, progress: Math.round(((i + 1) / targets.length) * 100) });
-      try { await sb.update("fx_parcels", targets[i].id, { label_printed: true, status: "printed" }); success++; } catch {}
+    try {
+      const ids = targets.map(t => t.id).join(",");
+      await sb.query("fx_parcels", { method: "PATCH", body: { label_printed: true, status: "printed" }, filters: `id=in.(${ids})` });
+      await sb.broadcastChange();
+      await loadParcels();
+      showToast(`✅ เปลี่ยนสถานะสำเร็จ ${targets.length} รายการ`);
+      setSelectedIds(new Set());
+    } catch (e) {
+      alert("❌ เปลี่ยนสถานะไม่ได้: " + e.message);
+      await loadParcels();
     }
-    await sb.broadcastChange();
-    await loadParcels();
-    setGlobalLoading(null);
-    showToast(`เปลี่ยนสถานะสำเร็จ ${success}/${targets.length} รายการ`);
-    setSelectedIds(new Set());
     setTimeout(() => { mutating.current = false; }, 2000);
   };
 
