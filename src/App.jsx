@@ -1171,7 +1171,7 @@ export default function FlashBackend() {
 
   const selectedCounts = useMemo(() => {
     const sel = parcels.filter(p => selectedIds.has(p.id));
-    return { total: sel.length, noTracking: sel.filter(p => !p.flash_pno).length, hasTracking: sel.filter(p => p.flash_pno).length };
+    return { total: sel.length, noTracking: sel.filter(p => !p.flash_pno).length, hasTracking: sel.filter(p => p.flash_pno).length, canMarkPrinted: sel.filter(p => p.flash_pno && p.status === "created").length };
   }, [parcels, selectedIds]);
 
   // ═══ SHARED PRINT PAGE — CRM2 style (SVG barcode + QR local + jsPDF) ═══
@@ -1282,6 +1282,25 @@ export default function FlashBackend() {
     const win = window.open("", "_blank");
     win.document.write(html);
     win.document.close();
+  };
+
+  const batchMarkPrinted = async () => {
+    const targets = parcels.filter(p => selectedIds.has(p.id) && p.flash_pno && p.status === "created");
+    if (!targets.length) { alert("ไม่มีรายการที่เปลี่ยนได้ (ต้องมีเลข Tracking + สถานะสร้างเลขแล้ว)"); return; }
+    if (!confirm(`เปลี่ยนสถานะเป็น "ปริ้นแล้ว" ${targets.length} รายการ?`)) return;
+    mutating.current = true;
+    setGlobalLoading({ msg: "กำลังเปลี่ยนสถานะ...", progress: 0 });
+    let success = 0;
+    for (let i = 0; i < targets.length; i++) {
+      setGlobalLoading({ msg: `กำลังเปลี่ยนสถานะ ${i + 1}/${targets.length}`, progress: Math.round(((i + 1) / targets.length) * 100) });
+      try { await sb.update("fx_parcels", targets[i].id, { label_printed: true, status: "printed" }); success++; } catch {}
+    }
+    await sb.broadcastChange();
+    await loadParcels();
+    setGlobalLoading(null);
+    showToast(`เปลี่ยนสถานะสำเร็จ ${success}/${targets.length} รายการ`);
+    setSelectedIds(new Set());
+    setTimeout(() => { mutating.current = false; }, 2000);
   };
 
   const batchPrint = async () => {
@@ -2168,6 +2187,7 @@ export default function FlashBackend() {
                   <div style={{ padding: "10px 16px", background: "linear-gradient(135deg,#eef2ff,#faf5ff)", borderBottom: "1px solid #c7d2fe", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#4f46e5" }}>✓ เลือก {selectedIds.size} รายการ</span>
                     <button onClick={batchCreateFlash} disabled={!!batchProgress} style={{ padding: "7px 16px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚡ สร้างเลข Tracking ({selectedCounts.noTracking})</button>
+                    <button onClick={batchMarkPrinted} style={{ padding: "7px 16px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🖨️ เปลี่ยนเป็นปริ้นแล้ว ({selectedCounts.canMarkPrinted})</button>
                     <button onClick={batchPrint} style={{ padding: "7px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🖨️ ปริ้น ({selectedCounts.hasTracking})</button>
                     {perm.delete && <button onClick={batchDelete} style={{ padding: "7px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🗑️ ลบ ({selectedIds.size})</button>}
                     <button onClick={() => setSelectedIds(new Set())} style={{ padding: "7px 14px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
