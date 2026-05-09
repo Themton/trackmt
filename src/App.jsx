@@ -1307,11 +1307,216 @@ export default function FlashBackend() {
     { key: "dashboard", label: "Dashboard", icon: "📊" },
     { key: "parcels", label: "การจัดส่ง", icon: "📦" },
     { key: "report", label: "รายงานสถานะ", icon: "🚚" },
+    { key: "evaluate", label: "ประเมินผล", icon: "📈" },
     { key: "import", label: "Import ไฟล์", icon: "📥" },
     { key: "export", label: "Export ข้อมูล", icon: "📤" },
     { key: "shops", label: "ร้านค้า", icon: "🏪" },
     ...(perm.users ? [{ key: "users", label: "จัดการผู้ใช้", icon: "👥" }] : []),
   ];
+
+  // ═══ EVALUATE PAGE — ประเมินผลแอดมิน ═══
+  const EvaluatePage = () => {
+    const [evalFrom, setEvalFrom] = useState("");
+    const [evalTo, setEvalTo] = useState("");
+    const [evalShop, setEvalShop] = useState("");
+
+    const evalData = useMemo(() => {
+      let list = parcels.filter(p => p.flash_pno);
+      if (evalShop) list = list.filter(p => p.shop_id === evalShop);
+      if (evalFrom) list = list.filter(p => (p.created_at || "").slice(0, 10) >= evalFrom);
+      if (evalTo) list = list.filter(p => (p.created_at || "").slice(0, 10) <= evalTo);
+      return list;
+    }, [parcels, evalShop, evalFrom, evalTo]);
+
+    const staffEval = useMemo(() => {
+      const map = {};
+      evalData.forEach(p => {
+        const name = p.sale_person || p.created_by_name || "ไม่ระบุ";
+        if (!map[name]) map[name] = { total: 0, delivered: 0, returned: 0, inTransit: 0, waiting: 0, cancelled: 0, cod: 0, codDelivered: 0, provinces: {} };
+        const m = map[name];
+        m.total++;
+        const fs = p.flash_status || "";
+        if (fs === "เซ็นรับแล้ว") { m.delivered++; if (p.cod_enabled) m.codDelivered += Number(p.cod_amount || 0); }
+        else if (fs === "ส่งคืน" || fs === "คืนสำเร็จ") m.returned++;
+        else if (fs === "รับพัสดุแล้ว" || fs === "อยู่ในระบบขนส่ง" || fs === "กำลังจัดส่ง") m.inTransit++;
+        else if (p.status === "cancelled") m.cancelled++;
+        else m.waiting++;
+        if (p.cod_enabled) m.cod += Number(p.cod_amount || 0);
+        const prov = p.receiver_province || "ไม่ระบุ";
+        if (!m.provinces[prov]) m.provinces[prov] = { total: 0, returned: 0 };
+        m.provinces[prov].total++;
+        if (fs === "ส่งคืน" || fs === "คืนสำเร็จ") m.provinces[prov].returned++;
+      });
+      return Object.entries(map).map(([name, d]) => {
+        const completed = d.delivered + d.returned;
+        const deliveryRate = completed > 0 ? ((d.delivered / completed) * 100).toFixed(1) : "—";
+        const returnRate = completed > 0 ? ((d.returned / completed) * 100).toFixed(1) : "—";
+        const topReturnProv = Object.entries(d.provinces).filter(([, v]) => v.returned > 0).sort((a, b) => b[1].returned - a[1].returned).slice(0, 3);
+        return { name, ...d, deliveryRate, returnRate, topReturnProv };
+      }).sort((a, b) => b.total - a.total);
+    }, [evalData]);
+
+    // Overall stats
+    const overall = useMemo(() => {
+      const t = { total: 0, delivered: 0, returned: 0, inTransit: 0 };
+      staffEval.forEach(s => { t.total += s.total; t.delivered += s.delivered; t.returned += s.returned; t.inTransit += s.inTransit; });
+      const completed = t.delivered + t.returned;
+      t.deliveryRate = completed > 0 ? ((t.delivered / completed) * 100).toFixed(1) : "—";
+      t.returnRate = completed > 0 ? ((t.returned / completed) * 100).toFixed(1) : "—";
+      return t;
+    }, [staffEval]);
+
+    const rateColor = (rate) => {
+      const n = parseFloat(rate);
+      if (isNaN(n)) return "#6b7280";
+      if (n >= 90) return "#059669";
+      if (n >= 70) return "#d97706";
+      return "#dc2626";
+    };
+    const returnColor = (rate) => {
+      const n = parseFloat(rate);
+      if (isNaN(n)) return "#6b7280";
+      if (n <= 5) return "#059669";
+      if (n <= 15) return "#d97706";
+      return "#dc2626";
+    };
+
+    const I = { padding: "9px 12px", border: "1.5px solid #e5e7eb", borderRadius: 10, fontSize: 13, fontFamily: "inherit" };
+
+    return (
+      <div style={{ padding: 24 }}>
+        <div style={{ marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#111" }}>📈 ประเมินผลแอดมิน</h2>
+          <p style={{ margin: "4px 0 0", fontSize: 14, color: "#6b7280" }}>วิเคราะห์อัตราจัดส่งสำเร็จ vs ตีกลับ แยกรายบุคคล</p>
+        </div>
+
+        {/* Filters */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "end" }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", display: "block", marginBottom: 4 }}>ตั้งแต่วันที่</label>
+            <input type="date" value={evalFrom} onChange={e => setEvalFrom(e.target.value)} style={I} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", display: "block", marginBottom: 4 }}>ถึงวันที่</label>
+            <input type="date" value={evalTo} onChange={e => setEvalTo(e.target.value)} style={I} />
+          </div>
+          {shops?.length > 0 && (
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", display: "block", marginBottom: 4 }}>ร้านค้า</label>
+              <select value={evalShop} onChange={e => setEvalShop(e.target.value)} style={{ ...I, minWidth: 150 }}>
+                <option value="">ทุกร้าน</option>
+                {shops.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
+          <div style={{ fontSize: 13, color: "#6b7280", padding: "10px 0" }}>พัสดุที่มีเลข Tracking: <strong>{evalData.length}</strong> รายการ</div>
+        </div>
+
+        {/* Overall Summary */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 24 }}>
+          <div style={{ background: "#fff", borderRadius: 14, padding: "18px 20px", border: "1px solid #e5e7eb" }}>
+            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>📋 ทั้งหมด</div>
+            <div style={{ fontSize: 30, fontWeight: 800, color: "#111" }}>{overall.total}</div>
+          </div>
+          <div style={{ background: "#ecfdf5", borderRadius: 14, padding: "18px 20px" }}>
+            <div style={{ fontSize: 12, color: "#065f46", marginBottom: 4 }}>✅ จัดส่งสำเร็จ</div>
+            <div style={{ fontSize: 30, fontWeight: 800, color: "#059669" }}>{overall.delivered}</div>
+          </div>
+          <div style={{ background: "#fee2e2", borderRadius: 14, padding: "18px 20px" }}>
+            <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 4 }}>↩️ ตีกลับ</div>
+            <div style={{ fontSize: 30, fontWeight: 800, color: "#dc2626" }}>{overall.returned}</div>
+          </div>
+          <div style={{ background: "#dbeafe", borderRadius: 14, padding: "18px 20px" }}>
+            <div style={{ fontSize: 12, color: "#1e40af", marginBottom: 4 }}>🚛 กำลังจัดส่ง</div>
+            <div style={{ fontSize: 30, fontWeight: 800, color: "#2563eb" }}>{overall.inTransit}</div>
+          </div>
+          <div style={{ background: "#ecfdf5", borderRadius: 14, padding: "18px 20px" }}>
+            <div style={{ fontSize: 12, color: "#065f46", marginBottom: 4 }}>📊 อัตราสำเร็จรวม</div>
+            <div style={{ fontSize: 30, fontWeight: 800, color: rateColor(overall.deliveryRate) }}>{overall.deliveryRate}%</div>
+          </div>
+          <div style={{ background: "#fee2e2", borderRadius: 14, padding: "18px 20px" }}>
+            <div style={{ fontSize: 12, color: "#991b1b", marginBottom: 4 }}>📊 อัตราตีกลับรวม</div>
+            <div style={{ fontSize: 30, fontWeight: 800, color: returnColor(overall.returnRate) }}>{overall.returnRate}%</div>
+          </div>
+        </div>
+
+        {/* Per-Staff Table */}
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e5e7eb", overflow: "hidden", marginBottom: 24 }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #f3f4f6", fontWeight: 700, fontSize: 15, color: "#111" }}>👥 แยกรายบุคคล ({staffEval.length} คน)</div>
+          {!staffEval.length ? (
+            <div style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>ไม่มีข้อมูล</div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#f9fafb", borderBottom: "2px solid #e5e7eb" }}>
+                    {["#", "แอดมิน/พนักงาน", "ทั้งหมด", "✅ สำเร็จ", "↩️ ตีกลับ", "🚛 กำลังส่ง", "⏳ รอ", "❌ ยกเลิก", "อัตราสำเร็จ", "อัตราตีกลับ", ...(perm.viewCOD ? ["COD รวม", "COD สำเร็จ"] : []), "จังหวัดตีกลับบ่อย"].map((h, i) => (
+                      <th key={i} style={{ padding: "10px 12px", textAlign: i >= 2 ? "center" : "left", fontWeight: 700, color: "#6b7280", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {staffEval.map((s, i) => (
+                    <tr key={s.name} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 ? "#fafafa" : "#fff" }}>
+                      <td style={{ padding: "12px", textAlign: "center", color: "#9ca3af", fontSize: 12 }}>{i + 1}</td>
+                      <td style={{ padding: "12px", fontWeight: 700, color: "#111", whiteSpace: "nowrap" }}>🧑‍💻 {s.name}</td>
+                      <td style={{ padding: "12px", textAlign: "center", fontWeight: 700 }}>{s.total}</td>
+                      <td style={{ padding: "12px", textAlign: "center", fontWeight: 700, color: "#059669" }}>{s.delivered}</td>
+                      <td style={{ padding: "12px", textAlign: "center", fontWeight: 700, color: "#dc2626" }}>{s.returned}</td>
+                      <td style={{ padding: "12px", textAlign: "center", color: "#2563eb" }}>{s.inTransit}</td>
+                      <td style={{ padding: "12px", textAlign: "center", color: "#d97706" }}>{s.waiting}</td>
+                      <td style={{ padding: "12px", textAlign: "center", color: "#6b7280" }}>{s.cancelled}</td>
+                      <td style={{ padding: "12px", textAlign: "center" }}>
+                        <span style={{ padding: "4px 12px", borderRadius: 8, fontWeight: 800, fontSize: 14, background: rateColor(s.deliveryRate) === "#059669" ? "#ecfdf5" : rateColor(s.deliveryRate) === "#d97706" ? "#fffbeb" : "#fef2f2", color: rateColor(s.deliveryRate) }}>{s.deliveryRate}%</span>
+                      </td>
+                      <td style={{ padding: "12px", textAlign: "center" }}>
+                        <span style={{ padding: "4px 12px", borderRadius: 8, fontWeight: 800, fontSize: 14, background: returnColor(s.returnRate) === "#059669" ? "#ecfdf5" : returnColor(s.returnRate) === "#d97706" ? "#fffbeb" : "#fef2f2", color: returnColor(s.returnRate) }}>{s.returnRate}%</span>
+                      </td>
+                      {perm.viewCOD && <>
+                        <td style={{ padding: "12px", textAlign: "center", fontWeight: 700, color: "#b45309" }}>฿{s.cod.toLocaleString()}</td>
+                        <td style={{ padding: "12px", textAlign: "center", fontWeight: 700, color: "#059669" }}>฿{s.codDelivered.toLocaleString()}</td>
+                      </>}
+                      <td style={{ padding: "12px", fontSize: 12 }}>
+                        {s.topReturnProv.length ? s.topReturnProv.map(([prov, v]) => (
+                          <span key={prov} style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, background: "#fee2e2", color: "#991b1b", fontSize: 11, fontWeight: 600, marginRight: 4, marginBottom: 2 }}>{prov} ({v.returned})</span>
+                        )) : <span style={{ color: "#d1d5db" }}>—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Rating Guide */}
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e5e7eb", padding: "16px 20px" }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: "#111" }}>📋 เกณฑ์ประเมิน</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: "#059669" }}>✅ อัตราจัดส่งสำเร็จ</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: "#059669", display: "inline-block" }}></span> ≥ 90% — ดีเยี่ยม</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: "#d97706", display: "inline-block" }}></span> 70-89% — ปานกลาง</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: "#dc2626", display: "inline-block" }}></span> &lt; 70% — ต้องปรับปรุง</div>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: "#dc2626" }}>↩️ อัตราตีกลับ</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: "#059669", display: "inline-block" }}></span> ≤ 5% — ดีเยี่ยม</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: "#d97706", display: "inline-block" }}></span> 6-15% — ปานกลาง</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 12, height: 12, borderRadius: 3, background: "#dc2626", display: "inline-block" }}></span> &gt; 15% — ต้องปรับปรุง</div>
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 12, fontSize: 12, color: "#9ca3af" }}>
+            * คำนวณจากพัสดุที่มีผลลัพธ์แล้ว (สำเร็จ + ตีกลับ) — ไม่รวมพัสดุที่กำลังจัดส่งอยู่
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // ═══ REPORT PAGE — รายงานสถานะพัสดุ Flash ═══
   const ReportPage = () => {
@@ -1991,6 +2196,7 @@ export default function FlashBackend() {
 
           {activePage === "dashboard" && <DashboardPage />}
           {activePage === "report" && <ReportPage />}
+          {activePage === "evaluate" && <EvaluatePage />}
           {activePage === "import" && <ImportPage />}
           {activePage === "export" && <ExportPage />}
           {activePage === "shops" && <ShopsPage />}
