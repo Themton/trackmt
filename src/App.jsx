@@ -964,7 +964,7 @@ export default function FlashBackend() {
   const [shops, setShops] = useState([]);
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [activePage, setActivePage] = useState("parcels");
+  const [activePage, setActivePage] = useState("dashboard");
   const [selectedShopFilter, setSelectedShopFilter] = useState("");
   const PER_PAGE = 20;
   const isDemo = SUPABASE_URL.includes("YOUR_PROJECT");
@@ -1304,12 +1304,155 @@ export default function FlashBackend() {
   const role = ROLES[user.role] || ROLES.shipping;
 
   const MENU = [
+    { key: "dashboard", label: "Dashboard", icon: "📊" },
     { key: "parcels", label: "การจัดส่ง", icon: "📦" },
     { key: "import", label: "Import ไฟล์", icon: "📥" },
     { key: "export", label: "Export ข้อมูล", icon: "📤" },
     { key: "shops", label: "ร้านค้า", icon: "🏪" },
     ...(perm.users ? [{ key: "users", label: "จัดการผู้ใช้", icon: "👥" }] : []),
   ];
+
+  // ═══ DASHBOARD PAGE ═══
+  const DashboardPage = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const todayParcels = parcels.filter(p => p.created_at?.slice(0, 10) === today);
+    const todayStats = {
+      total: todayParcels.length,
+      draft: todayParcels.filter(p => p.status === "draft").length,
+      created: todayParcels.filter(p => p.status === "created").length,
+      printed: todayParcels.filter(p => p.status === "printed").length,
+      cancelled: todayParcels.filter(p => p.status === "cancelled").length,
+      cod: todayParcels.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0),
+    };
+    // Flash status summary
+    const flashStats = {
+      noTracking: parcels.filter(p => !p.flash_pno && p.status !== "cancelled").length,
+      waiting: parcels.filter(p => p.flash_status === "รับพัสดุแล้ว" || p.flash_status === "อยู่ในระบบขนส่ง" || p.flash_status === "กำลังจัดส่ง").length,
+      delivered: parcels.filter(p => p.flash_status === "เซ็นรับแล้ว").length,
+      returned: parcels.filter(p => p.flash_status === "ส่งคืน" || p.flash_status === "คืนสำเร็จ").length,
+    };
+    // Per-shop stats
+    const shopStats = shops?.filter(s => s.is_active).map(s => {
+      const sp = parcels.filter(p => p.shop_id === s.id);
+      return { name: s.name, total: sp.length, cod: sp.filter(p => p.cod_enabled).reduce((a, p) => a + Number(p.cod_amount || 0), 0), draft: sp.filter(p => p.status === "draft").length, created: sp.filter(p => p.status === "created").length, printed: sp.filter(p => p.status === "printed").length };
+    }) || [];
+    const recentParcels = [...parcels].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 8);
+    const cardStyle = { background: "#fff", borderRadius: 16, border: "1px solid #e5e7eb", padding: "20px 24px" };
+    const numStyle = (color) => ({ fontSize: 32, fontWeight: 800, color, lineHeight: 1 });
+    const labelStyle = { fontSize: 13, color: "#6b7280", marginTop: 6, fontWeight: 500 };
+
+    return (
+      <div style={{ padding: 24 }}>
+        <div style={{ marginBottom: 24 }}>
+          <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#111" }}>📊 Dashboard</h2>
+          <p style={{ margin: "4px 0 0", fontSize: 14, color: "#6b7280" }}>สรุปภาพรวมระบบจัดการพัสดุ — {new Date().toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+        </div>
+
+        {/* ROW 1 — Today Summary */}
+        <div style={{ marginBottom: 12, fontSize: 15, fontWeight: 700, color: "#374151" }}>📅 วันนี้</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 28 }}>
+          {[
+            { label: "ทั้งหมด", value: todayStats.total, color: "#4f46e5", bg: "#eef2ff" },
+            { label: "เตรียมส่ง", value: todayStats.draft, color: "#d97706", bg: "#fffbeb" },
+            { label: "สร้างเลขแล้ว", value: todayStats.created, color: "#059669", bg: "#ecfdf5" },
+            { label: "ปริ้นแล้ว", value: todayStats.printed, color: "#7c3aed", bg: "#f5f3ff" },
+            { label: "ยกเลิก", value: todayStats.cancelled, color: "#dc2626", bg: "#fef2f2" },
+            ...(perm.viewCOD ? [{ label: "COD วันนี้", value: `฿${todayStats.cod.toLocaleString()}`, color: "#b45309", bg: "#fffbeb" }] : []),
+          ].map((c, i) => (
+            <div key={i} style={{ ...cardStyle, background: c.bg, borderColor: "transparent" }}>
+              <div style={numStyle(c.color)}>{c.value}</div>
+              <div style={labelStyle}>{c.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ROW 2 — All Time + Flash Status */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 28 }}>
+          {/* All Stats */}
+          <div style={cardStyle}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, color: "#111" }}>📦 พัสดุทั้งหมด</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div><div style={numStyle("#111")}>{stats.total}</div><div style={labelStyle}>ทั้งหมด</div></div>
+              <div><div style={numStyle("#059669")}>{stats.created + stats.printed}</div><div style={labelStyle}>สร้างเลขแล้ว</div></div>
+              <div><div style={numStyle("#d97706")}>{stats.draft}</div><div style={labelStyle}>รอสร้างเลข</div></div>
+              {perm.viewCOD && <div><div style={numStyle("#7c3aed")}>฿{stats.codTotal.toLocaleString()}</div><div style={labelStyle}>COD รวม</div></div>}
+            </div>
+          </div>
+
+          {/* Flash Tracking Status */}
+          <div style={cardStyle}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, color: "#111" }}>🚚 สถานะขนส่ง Flash</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div><div style={numStyle("#f59e0b")}>{flashStats.noTracking}</div><div style={labelStyle}>ยังไม่มีเลข</div></div>
+              <div><div style={numStyle("#3b82f6")}>{flashStats.waiting}</div><div style={labelStyle}>กำลังจัดส่ง</div></div>
+              <div><div style={numStyle("#10b981")}>{flashStats.delivered}</div><div style={labelStyle}>เซ็นรับแล้ว</div></div>
+              <div><div style={numStyle("#ef4444")}>{flashStats.returned}</div><div style={labelStyle}>ส่งคืน</div></div>
+            </div>
+          </div>
+        </div>
+
+        {/* ROW 3 — Per-shop + Recent */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          {/* Per Shop */}
+          {shopStats.length > 0 && (
+            <div style={cardStyle}>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, color: "#111" }}>🏪 แยกตามร้านค้า</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {shopStats.map((s, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "#f9fafb", borderRadius: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#111" }}>{s.name}</div>
+                      <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{s.total} รายการ | เตรียม {s.draft} | สร้างเลข {s.created} | ปริ้น {s.printed}</div>
+                    </div>
+                    {perm.viewCOD && <div style={{ fontSize: 15, fontWeight: 800, color: "#b45309" }}>฿{s.cod.toLocaleString()}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Parcels */}
+          <div style={cardStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#111" }}>🕐 รายการล่าสุด</div>
+              <button onClick={() => setActivePage("parcels")} style={{ fontSize: 12, color: "#4f46e5", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>ดูทั้งหมด →</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {recentParcels.map((p, i) => {
+                const st = { draft: { bg: "#fef3c7", color: "#92400e", text: "เตรียม" }, created: { bg: "#d1fae5", color: "#065f46", text: "สร้างเลข" }, printed: { bg: "#e0e7ff", color: "#3730a3", text: "ปริ้นแล้ว" }, cancelled: { bg: "#fee2e2", color: "#991b1b", text: "ยกเลิก" } }[p.status] || { bg: "#f3f4f6", color: "#374151", text: p.status };
+                return (
+                  <div key={i} onClick={() => setViewParcel(p)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: 8, cursor: "pointer", background: i % 2 === 0 ? "#f9fafb" : "#fff" }}>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#111" }}>{p.receiver_name}</span>
+                      <span style={{ fontSize: 12, color: "#9ca3af", marginLeft: 8 }}>{p.receiver_phone}</span>
+                    </div>
+                    <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: st.bg, color: st.color }}>{st.text}</span>
+                  </div>
+                );
+              })}
+              {!recentParcels.length && <div style={{ textAlign: "center", padding: 20, color: "#9ca3af" }}>ยังไม่มีพัสดุ</div>}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div style={{ marginTop: 28 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, color: "#374151" }}>⚡ เข้าถึงด่วน</div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {perm.create && <button onClick={() => { setActivePage("parcels"); setTimeout(() => { setEditParcel(null); setShowForm(true); }, 100); }} style={{ padding: "12px 24px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>＋ สร้างพัสดุ</button>}
+            <button onClick={() => setActivePage("import")} style={{ padding: "12px 24px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>📥 Import ไฟล์</button>
+            <button onClick={() => setActivePage("export")} style={{ padding: "12px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>📤 Export ข้อมูล</button>
+            <button onClick={() => setActivePage("parcels")} style={{ padding: "12px 24px", background: "#fff", color: "#374151", border: "1.5px solid #d1d5db", borderRadius: 12, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>📦 ดูรายการทั้งหมด</button>
+          </div>
+        </div>
+
+        {/* Realtime Indicator */}
+        <div style={{ marginTop: 20, textAlign: "center", fontSize: 12, color: "#9ca3af" }}>
+          🟢 Realtime — อัพเดตอัตโนมัติทุก 2 วินาที
+        </div>
+      </div>
+    );
+  };
 
   // ═══ IMPORT PAGE ═══
   const ImportPage = () => (
@@ -1557,7 +1700,7 @@ export default function FlashBackend() {
         {/* Logo */}
         <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid rgba(255,255,255,.08)" }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#f87171", display: "flex", alignItems: "center", gap: 8 }}>⚡ Flash Express</div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", marginTop: 2 }}>ระบบจัดการขนส่ง</div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", marginTop: 2 }}>ระบบจัดการขนส่ง <span style={{ color: "#10b981" }}>● Live</span></div>
         </div>
 
         {/* Menu */}
@@ -1667,6 +1810,7 @@ export default function FlashBackend() {
             </div>
           </>)}
 
+          {activePage === "dashboard" && <DashboardPage />}
           {activePage === "import" && <ImportPage />}
           {activePage === "export" && <ExportPage />}
           {activePage === "shops" && <ShopsPage />}
