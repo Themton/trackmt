@@ -997,9 +997,11 @@ export default function FlashBackend() {
 
   // ═══ REALTIME — broadcast timestamp polling (เหมือน crmtel) ═══
   const lastTs = useRef("0");
+  const mutating = useRef(false);
   useEffect(() => {
     if (!user || isDemo) return;
     const poll = setInterval(async () => {
+      if (mutating.current) return;
       try {
         const rows = await sb.select("fx_settings", { filters: "key=eq.last_updated" });
         const ts = rows?.[0]?.value || "0";
@@ -1034,19 +1036,21 @@ export default function FlashBackend() {
   const statsData = useMemo(() => { const list = selectedShopFilter ? parcels.filter(p => p.shop_id === selectedShopFilter) : parcels; return list; }, [parcels, selectedShopFilter]);
   const stats = useMemo(() => ({ total: statsData.length, draft: statsData.filter(p => p.status === "draft").length, created: statsData.filter(p => p.status === "created").length, printed: statsData.filter(p => p.status === "printed").length, cancelled: statsData.filter(p => p.status === "cancelled").length, codTotal: statsData.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [statsData]);
 
-  const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } try { await sb.delete("fx_parcels", p.id); setParcels(prev => prev.filter(x => x.id !== p.id)); showToast("ลบสำเร็จ"); sb.broadcastChange(); } catch (e) { alert(e.message); } };
+  const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } mutating.current = true; try { await sb.delete("fx_parcels", p.id); setParcels(prev => prev.filter(x => x.id !== p.id)); showToast("ลบสำเร็จ"); await sb.broadcastChange(); } catch (e) { alert(e.message); } setTimeout(() => { mutating.current = false; }, 1000); };
   const markPrinted = async (p) => {
+    mutating.current = true;
     setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: true, status: "printed" } : x));
     if (!isDemo) {
       try {
         await sb.update("fx_parcels", p.id, { label_printed: true, status: "printed" });
         console.log("markPrinted OK:", p.id);
-        sb.broadcastChange();
+        await sb.broadcastChange();
       } catch (e) {
         console.error("markPrinted FAILED:", e.message);
         alert("บันทึกสถานะปริ้นไม่ได้: " + e.message);
       }
     }
+    setTimeout(() => { mutating.current = false; }, 1000);
   };
 
   // สร้างเลข Tracking Flash Express
@@ -1068,6 +1072,7 @@ export default function FlashBackend() {
     const acc = getFlashAccount(p);
     if (!confirm(`สร้างเลข Tracking Flash Express?\n\nบัญชี: ${acc.mchId}\nผู้รับ: ${p.receiver_name}\nเบอร์: ${p.receiver_phone}`)) return;
     setFlashLoading(p.id);
+    mutating.current = true;
     try {
       const result = await flashApi.createOrder(p, acc);
       console.log("Flash API response:", JSON.stringify(result));
@@ -1087,11 +1092,13 @@ export default function FlashBackend() {
       }
     } catch (e) { alert("เชื่อมต่อ Flash API ไม่ได้:\n" + e.message); }
     setFlashLoading(null);
+    setTimeout(() => { mutating.current = false; }, 1000);
   };
 
   const cancelFlashOrder = async (p) => {
     if (!p.flash_pno) { alert("พัสดุนี้ยังไม่มีเลข Tracking"); return; }
     if (!confirm(`ยกเลิกเลขพัสดุ?\n\n${p.flash_pno}\nผู้รับ: ${p.receiver_name}\n\n⚠️ จะยกเลิกจากระบบ Flash Express ด้วย`)) return;
+    mutating.current = true;
     setFlashLoading(p.id);
     try {
       const acc = getFlashAccount(p);
@@ -2185,7 +2192,7 @@ export default function FlashBackend() {
                             {perm.status && !p.flash_pno && <button title="สร้างเลข" onClick={() => createFlashOrder(p)} disabled={flashLoading === p.id} style={{ width: 26, height: 26, border: "1px solid #fbbf24", borderRadius: 4, background: flashLoading === p.id ? "#fef3c7" : "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{flashLoading === p.id ? "⏳" : "⚡"}</button>}
                             {perm.status && p.flash_pno && p.status !== "cancelled" && <button title="ยกเลิกเลขพัสดุ" onClick={() => cancelFlashOrder(p)} disabled={flashLoading === p.id} style={{ width: 26, height: 26, border: "1px solid #dc2626", borderRadius: 4, background: flashLoading === p.id ? "#fef2f2" : "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{flashLoading === p.id ? "⏳" : "❌"}</button>}
                             {perm.status && p.flash_pno && p.status === "created" && <button title="เปลี่ยนเป็นปริ้นแล้ว" onClick={() => markPrinted(p)} style={{ width: 26, height: 26, border: "1px solid #6366f1", borderRadius: 4, background: "#eef2ff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🖨️</button>}
-                            {perm.status && p.flash_pno && p.status === "printed" && <button title="เปลี่ยนกลับเป็นสร้างเลขแล้ว" onClick={async () => { setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: false, status: "created" } : x)); try { await sb.update("fx_parcels", p.id, { label_printed: false, status: "created" }); sb.broadcastChange(); showToast("เปลี่ยนกลับเป็นสร้างเลขแล้ว"); } catch (e) { alert(e.message); } }} style={{ width: 26, height: 26, border: "1px solid #f59e0b", borderRadius: 4, background: "#fffbeb", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>↩️</button>}
+                            {perm.status && p.flash_pno && p.status === "printed" && <button title="เปลี่ยนกลับเป็นสร้างเลขแล้ว" onClick={async () => { mutating.current = true; setParcels(prev => prev.map(x => x.id === p.id ? { ...x, label_printed: false, status: "created" } : x)); try { await sb.update("fx_parcels", p.id, { label_printed: false, status: "created" }); await sb.broadcastChange(); showToast("เปลี่ยนกลับเป็นสร้างเลขแล้ว"); } catch (e) { alert(e.message); } setTimeout(() => { mutating.current = false; }, 1000); }} style={{ width: 26, height: 26, border: "1px solid #f59e0b", borderRadius: 4, background: "#fffbeb", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>↩️</button>}
                             {perm.edit && <button title="แก้ไข" onClick={() => { setEditParcel(p); setShowForm(true); }} style={{ width: 26, height: 26, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</button>}
                             {perm.delete && <button title="ลบ" onClick={() => handleDelete(p)} style={{ width: 26, height: 26, border: "1px solid #fca5a5", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑️</button>}
                             <button title="ดูรายละเอียด" onClick={() => setViewParcel(p)} style={{ width: 26, height: 26, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>👁️</button>
