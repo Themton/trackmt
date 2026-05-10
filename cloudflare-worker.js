@@ -78,7 +78,7 @@ async function syncFlash() {
   let parcels = [];
   try {
     parcels = await sbQuery(
-      "fx_parcels?select=id,flash_pno,flash_status,status,shop_id" +
+      "fx_parcels?select=id,flash_pno,flash_status,flash_detail,status,shop_id" +
       "&flash_pno=neq.&flash_pno=not.is.null&status=neq.cancelled" +
       "&order=created_at.desc", { range: "0-" + (BATCH - 1) }
     ) || [];
@@ -102,21 +102,28 @@ async function syncFlash() {
       const r = await getTracking(p.flash_pno, mchId);
       if (r && r.code === 1 && r.data) {
         const newStatus = stateText(r.data.state);
-        if (newStatus && newStatus !== p.flash_status) {
-          if (!updates[newStatus]) updates[newStatus] = [];
-          updates[newStatus].push(p.id);
+        const latestRoute = r.data.routes?.[0];
+        const detail = latestRoute?.message || "";
+        const updatedAt = latestRoute?.routedAt ? new Date(latestRoute.routedAt * 1000).toISOString() : null;
+        if (newStatus !== p.flash_status || detail !== (p.flash_detail || "")) {
+          const key = JSON.stringify({ status: newStatus, detail, updatedAt });
+          if (!updates[key]) updates[key] = [];
+          updates[key].push(p.id);
         }
       }
     } catch { errors++; }
     if (i < parcels.length - 1) await new Promise(r => setTimeout(r, DELAY));
   }
 
-  for (const status in updates) {
-    const ids = updates[status];
+  for (const key in updates) {
+    const { status, detail, updatedAt } = JSON.parse(key);
+    const ids = updates[key];
     for (let i = 0; i < ids.length; i += 50) {
       const chunk = ids.slice(i, i + 50);
       try {
-        await sbQuery("fx_parcels?id=in.(" + chunk.join(",") + ")", { method: "PATCH", body: { flash_status: status }, prefer: "return=minimal" });
+        const body = { flash_status: status, flash_detail: detail };
+        if (updatedAt) body.flash_updated_at = updatedAt;
+        await sbQuery("fx_parcels?id=in.(" + chunk.join(",") + ")", { method: "PATCH", body, prefer: "return=minimal" });
         updated += chunk.length;
       } catch { errors += chunk.length; }
     }
