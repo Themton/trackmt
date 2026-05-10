@@ -3,7 +3,7 @@
 
 const SB_URL = "https://fnkohtdpwdwedjrtklre.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZua29odGRwd2R3ZWRqcnRrbHJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzNTA3MjIsImV4cCI6MjA4ODkyNjcyMn0.AuotNxQWgKiSYpS7kLBMm3jOCFhJWsXy31yaqG6dwic";
-const FLASH_PROD = "https://open-api.flashexpress.com";
+const FLASH_PROD = "https://api.flashexpress.com";
 
 const FLASH_ACCOUNTS = {
   "CBC9351": "0d0b630e5e245149fe120a062c342b3f41ffaea51597464841e97d324b792334",
@@ -138,6 +138,14 @@ export default {
 
     if (url.pathname === "/") return json({ status: "ok", version: "v2.0", features: ["flash-proxy", "supabase-proxy", "auto-sync"] });
     if (url.pathname === "/sync") return json(await syncFlash());
+
+    if (url.pathname === "/test") {
+      const pno = url.searchParams.get("pno") || "";
+      const mchId = url.searchParams.get("mch") || "CBC9351";
+      if (!pno) return json({ error: "ต้องระบุ ?pno=TH..." });
+      const r = await getTracking(pno, mchId);
+      return json({ pno, mchId, flash_response: r });
+    }
 
     if (url.pathname === "/status") {
       try {
