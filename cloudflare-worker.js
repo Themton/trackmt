@@ -53,18 +53,24 @@ function stateText(s) {
 
 const DONE = ["เซ็นรับแล้ว", "คืนสำเร็จ"];
 
-async function getTracking(pno, mchId) {
-  try {
-    const apiKey = FLASH_ACCOUNTS[mchId] || FLASH_ACCOUNTS["CBC9351"];
-    const p = { mchId: mchId || "CBC9351", nonceStr: String(Date.now()) };
-    p.sign = await flashSign(p, apiKey);
-    const body = new URLSearchParams(p).toString();
-    const r = await fetch(FLASH_PROD + "/open/v1/orders/" + pno + "/routes", {
-      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" }, body
-    });
-    if (!r.ok) return null;
-    return await r.json();
-  } catch { return null; }
+async function getTracking(pno, preferMchId) {
+  const tryOrder = [preferMchId, ...Object.keys(FLASH_ACCOUNTS).filter(k => k !== preferMchId)];
+  for (const mchId of tryOrder) {
+    const apiKey = FLASH_ACCOUNTS[mchId];
+    if (!apiKey) continue;
+    try {
+      const p = { mchId, nonceStr: String(Date.now()) + Math.random().toString(36).slice(2, 6) };
+      p.sign = await flashSign(p, apiKey);
+      const body = new URLSearchParams(p).toString();
+      const r = await fetch(FLASH_PROD + "/open/v1/orders/" + pno + "/routes", {
+        method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" }, body
+      });
+      if (!r.ok) continue;
+      const data = await r.json();
+      if (data && data.code === 1) return data;
+    } catch {}
+  }
+  return null;
 }
 
 async function syncFlash() {
