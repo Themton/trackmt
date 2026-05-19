@@ -81,6 +81,9 @@ const flashApi = {
   async cancelOrder(pno, account) {
     return this.callWorker("cancel", { pno, mchId: account?.mchId || "CBC9351" });
   },
+  async getTracking(pnos, account) {
+    return this.callWorker("tracking", { pnos: pnos.join(","), mchId: account?.mchId || "CBC9351" });
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -1028,6 +1031,43 @@ export default function FlashBackend() {
     try { const d = await sb.select("fx_shops", { order: "created_at.asc" }); setShops(d || []); } catch {}
   }, [isDemo]);
   useEffect(() => { if (user) loadShops(); }, [user, loadShops]);
+
+  // ═══ REFRESH FLASH STATUS — ดึงสถานะจริงจาก Flash API ═══
+  const [flashRefreshing, setFlashRefreshing] = useState(false);
+  const refreshFlashStatus = async () => {
+    const toCheck = parcels.filter(p => p.flash_pno && p.status !== "cancelled" && p.flash_status !== "เซ็นรับแล้ว" && p.flash_status !== "คืนสำเร็จ");
+    if (!toCheck.length) { showToast("ไม่มีรายการที่ต้องอัพเดต"); return; }
+    setFlashRefreshing(true);
+    let updated = 0;
+    // Batch 20 per call
+    for (let i = 0; i < toCheck.length; i += 20) {
+      const batch = toCheck.slice(i, i + 20);
+      const pnos = batch.map(p => p.flash_pno);
+      try {
+        const acc = getFlashAccount(batch[0]);
+        const result = await flashApi.getTracking(pnos, acc);
+        if (result.code === 1 && result.data) {
+          for (const item of result.data) {
+            const parcel = batch.find(p => p.flash_pno === item.pno);
+            if (!parcel) continue;
+            const lastRoute = item.routes?.[0];
+            const updates = {
+              flash_state: item.state,
+              flash_status: item.stateText || "",
+              flash_detail: lastRoute?.message || "",
+              flash_updated_at: new Date((item.stateChangeAt || 0) * 1000).toISOString(),
+            };
+            setParcels(prev => prev.map(x => x.id === parcel.id ? { ...x, ...updates } : x));
+            if (!isDemo) { try { await sb.update("fx_parcels", parcel.id, updates); } catch {} }
+            updated++;
+          }
+        }
+      } catch (e) { console.warn("Tracking batch error:", e.message); }
+      if (i + 20 < toCheck.length) await new Promise(r => setTimeout(r, 500));
+    }
+    setFlashRefreshing(false);
+    showToast(`อัพเดตสถานะ Flash ${updated} รายการ`);
+  };
 
   // ═══ REALTIME — broadcast timestamp polling (เหมือน crmtel) ═══
   const lastTs = useRef("0");
@@ -2388,6 +2428,7 @@ export default function FlashBackend() {
               <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="ค้นหา..." style={{ width: "100%", padding: "9px 12px 9px 36px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
             </div>
             <button onClick={loadParcels} style={{ padding: "9px 12px", background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>🔄</button>
+            <button onClick={refreshFlashStatus} disabled={flashRefreshing} style={{ padding: "9px 12px", background: flashRefreshing ? "#fef3c7" : "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: 10, cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#ea580c", whiteSpace: "nowrap" }}>{flashRefreshing ? "⏳ กำลังอัพเดต..." : "🚚 อัพเดตสถานะ Flash"}</button>
             {/* กลาง: กรอง + ปริ้น */}
             {shops?.length > 0 && <select value={selectedShopFilter} onChange={e => { setSelectedShopFilter(e.target.value); setPage(0); }} style={{ padding: "9px 10px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 12, fontFamily: "inherit", fontWeight: 600, color: selectedShopFilter ? "#dc2626" : "#64748b" }}>
               <option value="">🏪 ทุกร้าน</option>
@@ -2451,7 +2492,7 @@ export default function FlashBackend() {
                       <thead><tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
                         {perm.status && <th style={{ padding: "10px 8px", width: 36 }}><input type="checkbox" checked={paged.length > 0 && paged.every(p => selectedIds.has(p.id))} onChange={toggleSelectAll} style={{ cursor: "pointer" }} /></th>}
                         <th style={{ padding: "10px 8px", width: 30, color: "#64748b", fontSize: 11 }}>🖨️</th>
-                        {["วันที่", "เวลา", "ลูกค้า", "เบอร์โทรศัพท์", "สถานะ", "หมายเลขการติดตาม", ...(perm.viewCOD ? ["COD"] : []), "ร้านค้า", "การปฏิบัติ"].map((h, i) => <th key={i} style={{ padding: "10px 10px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>)}
+                        {["วันที่", "เวลา", "ลูกค้า", "เบอร์โทรศัพท์", "สถานะ", "สถานะ Flash", "หมายเลขการติดตาม", ...(perm.viewCOD ? ["COD"] : []), "ร้านค้า", "การปฏิบัติ"].map((h, i) => <th key={i} style={{ padding: "10px 10px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>)}
                       </tr></thead>
                       <tbody>{paged.map((p, i) => { const d = new Date(p.created_at); return (
                         <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedIds.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
@@ -2462,6 +2503,7 @@ export default function FlashBackend() {
                           <td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => setViewParcel(p)}>{p.receiver_name}</td>
                           <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
                           <td style={{ padding: "8px 10px" }}><span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: p.status === "printed" ? "#eef2ff" : p.status === "created" ? "#ecfdf5" : p.status === "cancelled" ? "#fef2f2" : "#fef3c7", color: p.status === "printed" ? "#6366f1" : p.status === "created" ? "#059669" : p.status === "cancelled" ? "#dc2626" : "#f59e0b" }}>{p.status === "printed" ? "🖨️ ปริ้นแล้ว" : p.status === "created" ? "✅ สร้างเลขแล้ว" : p.status === "cancelled" ? "❌ ยกเลิก" : "📝 เตรียมส่ง"}</span></td>
+                          <td style={{ padding: "8px 10px" }}>{p.flash_status ? <span title={p.flash_detail || ""} style={{ padding: "3px 8px", borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "help", background: p.flash_status === "เซ็นรับแล้ว" ? "#dcfce7" : p.flash_status === "ส่งคืน" || p.flash_status === "คืนสำเร็จ" ? "#fee2e2" : p.flash_status === "ในระบบขนส่ง" || p.flash_status === "กำลังจัดส่ง" ? "#dbeafe" : p.flash_status === "รับพัสดุแล้ว" ? "#e0f2fe" : "#f3f4f6", color: p.flash_status === "เซ็นรับแล้ว" ? "#166534" : p.flash_status === "ส่งคืน" || p.flash_status === "คืนสำเร็จ" ? "#991b1b" : p.flash_status === "ในระบบขนส่ง" || p.flash_status === "กำลังจัดส่ง" ? "#1e40af" : p.flash_status === "รับพัสดุแล้ว" ? "#0369a1" : "#475569" }}>{p.flash_status}</span> : <span style={{ color: "#d1d5db", fontSize: 11 }}>—</span>}</td>
                           <td style={{ padding: "8px 10px" }}>{p.flash_pno ? <span style={{ color: "#0ea5e9", fontWeight: 600, fontSize: 12 }}>{p.flash_pno} {p.flash_sort_code ? "📋" : ""}</span> : <span style={{ color: "#cbd5e1" }}>—</span>}</td>
                           {perm.viewCOD && <td style={{ padding: "8px 10px", fontWeight: 700, fontSize: 13 }}>{p.cod_enabled ? <span style={{ color: "#000" }}>{Number(p.cod_amount || 0).toLocaleString()}</span> : ""}</td>}
                           <td style={{ padding: "8px 10px", fontSize: 11, fontWeight: 600 }}>{p.sender_name || "—"}</td>

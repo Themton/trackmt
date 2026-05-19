@@ -188,6 +188,13 @@ export default {
       const mchId = body.mchId || "CBC9351";
       return json(await callFlash("/open/v1/orders/" + body.pno + "/cancel", { pno: body.pno }, mchId));
     }
+    if (url.pathname === "/flash-api/tracking" && req.method === "POST") {
+      const body = await req.json().catch(() => ({}));
+      const mchId = body.mchId || "CBC9351";
+      const pnos = body.pnos || "";
+      if (!pnos) return json({ code: -1, message: "pnos required" });
+      return json(await callFlash("/open/v1/orders/routesBatch", { pnos }, mchId));
+    }
 
     // ═══ SUPABASE PROXY ═══
     const targetUrl = SB_URL + url.pathname + url.search;
