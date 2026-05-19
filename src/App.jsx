@@ -991,6 +991,7 @@ export default function FlashBackend() {
   const [editParcel, setEditParcel] = useState(null);
   
   const [viewParcel, setViewParcel] = useState(null);
+  const [printPreview, setPrintPreview] = useState(null); // array of parcels to preview before print
   const [shops, setShops] = useState([]);
   const [page, setPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -1336,16 +1337,7 @@ export default function FlashBackend() {
   const batchPrint = async () => {
     const targets = parcels.filter(p => selectedIds.has(p.id) && p.flash_pno);
     if (!targets.length) { alert("ไม่มีรายการที่มีเลข Tracking ให้ปริ้น"); return; }
-    if (!confirm(`ปริ้นใบปะหน้า ${targets.length} ใบ?`)) return;
-    openPrintPage(targets);
-    // Mark all as printed
-    for (let i = 0; i < targets.length; i++) {
-      if (!isDemo) { try { await sb.update("fx_parcels", targets[i].id, { label_printed: true, status: "printed" }); } catch {} }
-    }
-    setParcels(prev => prev.map(x => targets.some(t => t.id === x.id) ? { ...x, label_printed: true, status: "printed" } : x));
-    showToast(`ปริ้นสำเร็จ ${targets.length} ใบ`);
-    sb.broadcastChange();
-    setSelectedIds(new Set());
+    setPrintPreview(targets.map(p => ({ ...p })));
   };
 
   const batchDelete = async () => {
@@ -2430,7 +2422,7 @@ export default function FlashBackend() {
                       <tbody>{paged.map((p, i) => { const d = new Date(p.created_at); return (
                         <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: selectedIds.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
                           {perm.status && <td style={{ padding: "8px", textAlign: "center" }}><input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} style={{ cursor: "pointer" }} /></td>}
-                          <td style={{ padding: "8px", textAlign: "center" }}>{p.flash_pno ? <span style={{ cursor: "pointer", fontSize: 14, color: p.status === "printed" ? "#059669" : "#64748b" }} onClick={() => { if (!confirm(`ปริ้นใบปะหน้า?\n\n${p.receiver_name}\n${p.flash_pno}`)) return; openPrintPage([p]); markPrinted(p); }}>{p.status === "printed" ? "🟢" : "🖨️"}</span> : <span style={{ color: "#e5e7eb" }}>—</span>}</td>
+                          <td style={{ padding: "8px", textAlign: "center" }}>{p.flash_pno ? <span style={{ cursor: "pointer", fontSize: 14, color: p.status === "printed" ? "#059669" : "#64748b" }} onClick={() => setPrintPreview([{ ...p }])}>{p.status === "printed" ? "🟢" : "🖨️"}</span> : <span style={{ color: "#e5e7eb" }}>—</span>}</td>
                           <td style={{ padding: "8px 10px", fontSize: 12, whiteSpace: "nowrap" }}>{d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</td>
                           <td style={{ padding: "8px 10px", fontSize: 12, whiteSpace: "nowrap", color: "#64748b" }}>{d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })} น.</td>
                           <td style={{ padding: "8px 10px", fontWeight: 600, cursor: "pointer", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => setViewParcel(p)}>{p.receiver_name}</td>
@@ -2493,6 +2485,48 @@ export default function FlashBackend() {
         </div>
       )}
 
+      {/* PRINT PREVIEW — เลือกราคาก่อนปริ้น */}
+      {printPreview && <div style={{ position: "fixed", inset: 0, zIndex: 9500, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setPrintPreview(null)}>
+        <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 600, width: "95%", maxHeight: "85vh", overflowY: "auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🖨️ ปริ้นใบปะหน้า — {printPreview.length} ใบ</h3>
+            <button onClick={() => setPrintPreview(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>✕</button>
+          </div>
+          <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>แก้ไขราคา COD / Note ได้ก่อนปริ้น</div>
+          <div style={{ maxHeight: 400, overflowY: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead><tr style={{ background: "#f8fafc" }}>
+                {["ลูกค้า", "เบอร์", "COD", "Note/หมายเหตุ"].map((h, i) => <th key={i} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, borderBottom: "1px solid #e2e8f0" }}>{h}</th>)}
+              </tr></thead>
+              <tbody>{printPreview.map((p, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                  <td style={{ padding: "8px 10px", fontWeight: 600 }}>{p.receiver_name}</td>
+                  <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
+                  <td style={{ padding: "8px 10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <input type="checkbox" checked={p.cod_enabled || false} onChange={e => setPrintPreview(prev => prev.map((x, idx) => idx === i ? { ...x, cod_enabled: e.target.checked } : x))} />
+                      <input type="number" value={p.cod_amount || ""} onChange={e => setPrintPreview(prev => prev.map((x, idx) => idx === i ? { ...x, cod_amount: parseFloat(e.target.value) || 0, cod_enabled: parseFloat(e.target.value) > 0 } : x))} placeholder="0" style={{ width: 80, padding: "5px 8px", border: "1.5px solid #e2e8f0", borderRadius: 6, fontSize: 13, fontWeight: 700, fontFamily: "inherit", textAlign: "right" }} />
+                    </div>
+                  </td>
+                  <td style={{ padding: "8px 10px" }}>
+                    <input value={p.remark || ""} onChange={e => setPrintPreview(prev => prev.map((x, idx) => idx === i ? { ...x, remark: e.target.value } : x))} placeholder="หมายเหตุ" style={{ width: "100%", padding: "5px 8px", border: "1.5px solid #e2e8f0", borderRadius: 6, fontSize: 12, fontFamily: "inherit" }} />
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+            <button onClick={async () => {
+              openPrintPage(printPreview);
+              for (const p of printPreview) { markPrinted(p); }
+              setSelectedIds(new Set());
+              setPrintPreview(null);
+            }} style={{ flex: 1, padding: 14, background: "#dc2626", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>🖨️ ปริ้น {printPreview.length} ใบ</button>
+            <button onClick={() => setPrintPreview(null)} style={{ padding: "14px 24px", background: "#f1f5f9", border: "none", borderRadius: 12, fontWeight: 600, cursor: "pointer" }}>ยกเลิก</button>
+          </div>
+        </div>
+      </div>}
+
       {/* DETAIL MODAL */}
       {viewParcel && <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setViewParcel(null)}><div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 520, width: "95%", maxHeight: "85vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>📦 รายละเอียด</h3><button onClick={() => setViewParcel(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>✕</button></div>
@@ -2500,7 +2534,7 @@ export default function FlashBackend() {
         <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
           {perm.edit && !viewParcel.flash_pno && <button onClick={() => { setEditParcel(viewParcel); setShowForm(true); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#e53e3e", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>✏️ แก้ไข</button>}
           {viewParcel.flash_pno && <div style={{ flex: 1, padding: 11, background: "#f3f4f6", borderRadius: 10, textAlign: "center", fontSize: 12, color: "#6b7280", fontWeight: 600 }}>🔒 ยกเลิกเลข Tracking ก่อนจึงจะแก้ไขได้</div>}
-          {perm.print && viewParcel.flash_pno && <button onClick={() => { openPrintPage([viewParcel]); markPrinted(viewParcel); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>🖨️ ปริ้น</button>}
+          {perm.print && viewParcel.flash_pno && <button onClick={() => { setPrintPreview([{ ...viewParcel }]); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>🖨️ ปริ้น</button>}
         </div>
       </div></div>}
 
