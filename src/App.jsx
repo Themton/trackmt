@@ -2420,7 +2420,7 @@ export default function FlashBackend() {
             {/* TABLE */}
             <div style={{ padding: "0 24px 24px" }}>
               {/* กรองยอด + ปริ้น — แสดงเมื่อเลือกแท็บ สร้างเลขพัสดุแล้ว */}
-              {statusFilter === "created" && filtered.length > 0 && (
+              {statusFilter === "created" && (
                 <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "12px 16px", background: "#ecfdf5", borderRadius: 12, marginBottom: 12, border: "1px solid #a7f3d0" }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "#059669" }}>🖨️ ปริ้นตามยอด:</span>
                   <select value={codFilter} onChange={e => { setCodFilter(e.target.value); setPage(0); }} style={{ padding: "8px 12px", border: "1.5px solid #a7f3d0", borderRadius: 8, fontSize: 13, fontFamily: "inherit", fontWeight: 700, color: codFilter ? "#d97706" : "#059669", background: "#fff" }}>
