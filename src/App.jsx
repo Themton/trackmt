@@ -1374,6 +1374,7 @@ export default function FlashBackend() {
     { key: "report", label: "รายงานสถานะ", icon: "🚚" },
     { key: "evaluate", label: "ประเมินผล", icon: "📈" },
     { key: "import", label: "Import ไฟล์", icon: "📥" },
+    { key: "upsell", label: "Upsell", icon: "💰" },
     { key: "export", label: "Export ข้อมูล", icon: "📤" },
     { key: "shops", label: "ร้านค้า", icon: "🏪" },
     ...(perm.users ? [{ key: "users", label: "จัดการผู้ใช้", icon: "👥" }] : []),
@@ -1935,6 +1936,185 @@ export default function FlashBackend() {
   const ShopsPage = () => <div style={{ padding: 24 }}><ShopManagement onClose={() => {}} onUpdate={loadShops} isDemo={isDemo} inline /></div>;
 
   // ═══ EXPORT PAGE ═══
+  // ═══ UPSELL PAGE ═══
+  const UpsellPage = () => {
+    const [upsellData, setUpsellData] = useState([]);
+    const [upsellLoading, setUpsellLoading] = useState(true);
+    const [upsellFilter, setUpsellFilter] = useState("ALL");
+    const [upsellSearch, setUpsellSearch] = useState("");
+    const [upsellFile, setUpsellFile] = useState(null);
+    const [upsellRows, setUpsellRows] = useState([]);
+    const [upsellImporting, setUpsellImporting] = useState(false);
+    const [upsellProgress, setUpsellProgress] = useState(0);
+
+    const loadUpsell = async () => { setUpsellLoading(true); try { const d = await sb.select("fx_upsell", { order: "created_at.desc" }); setUpsellData(d || []); } catch {} setUpsellLoading(false); };
+    useEffect(() => { loadUpsell(); }, []);
+
+    const TABS = [
+      { key: "ALL", label: "ทั้งหมด", icon: "📋", color: "#475569" },
+      { key: "pending", label: "รอดำเนินการ", icon: "⏳", color: "#f59e0b" },
+      { key: "success", label: "อัพเซลล์สำเร็จ", icon: "✅", color: "#059669" },
+      { key: "cancelled", label: "ยกเลิก", icon: "❌", color: "#dc2626" },
+    ];
+
+    const filtered = useMemo(() => {
+      let list = upsellData;
+      if (upsellFilter !== "ALL") list = list.filter(p => p.status === upsellFilter);
+      if (upsellSearch) { const q = upsellSearch.toLowerCase(); list = list.filter(p => [p.receiver_name, p.receiver_phone, p.remark].some(v => (v || "").toLowerCase().includes(q))); }
+      return list;
+    }, [upsellData, upsellFilter, upsellSearch]);
+
+    // Import Excel
+    const handleFile = async (file) => {
+      const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+      const ab = await file.arrayBuffer();
+      const wb = XLSX.read(ab);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      if (raw.length < 2) { alert("ไม่พบข้อมูลในไฟล์"); return; }
+      const headers = raw[0].map(h => String(h).trim().toLowerCase());
+      const nameIdx = headers.findIndex(h => /ชื่อ|name|ผู้รับ/.test(h));
+      const phoneIdx = headers.findIndex(h => /เบอร์|phone|โทร/.test(h));
+      const addrIdx = headers.findIndex(h => /ที่อยู่|address/.test(h));
+      const remarkIdx = headers.findIndex(h => /หมายเหตุ|remark|note|สินค้า/.test(h));
+      const codIdx = headers.findIndex(h => /cod|ยอด|เงิน|price/.test(h));
+      if (nameIdx < 0 || phoneIdx < 0) { alert("ไม่พบคอลัมน์ ชื่อ/เบอร์ ในไฟล์"); return; }
+      const rows = raw.slice(1).filter(r => r[nameIdx]).map(r => ({
+        receiver_name: String(r[nameIdx] || "").trim(),
+        receiver_phone: String(r[phoneIdx] || "").trim(),
+        receiver_address: addrIdx >= 0 ? String(r[addrIdx] || "").trim() : "",
+        remark: remarkIdx >= 0 ? String(r[remarkIdx] || "").trim() : "",
+        cod_amount: codIdx >= 0 ? parseFloat(r[codIdx]) || 0 : 0,
+        _selected: true,
+      }));
+      setUpsellRows(rows);
+    };
+
+    const handleImport = async () => {
+      const selected = upsellRows.filter(r => r._selected);
+      if (!selected.length) return;
+      setUpsellImporting(true);
+      let success = 0;
+      for (let i = 0; i < selected.length; i++) {
+        const r = selected[i];
+        try {
+          await sb.insert("fx_upsell", {
+            receiver_name: r.receiver_name, receiver_phone: r.receiver_phone,
+            receiver_address: r.receiver_address || "-", remark: r.remark || "",
+            cod_amount: r.cod_amount || 0, status: "pending",
+            created_by: user.id, created_by_name: user.display_name,
+          });
+          success++;
+        } catch {}
+        setUpsellProgress(Math.round(((i + 1) / selected.length) * 100));
+      }
+      setUpsellImporting(false);
+      setUpsellRows([]);
+      showToast(`นำเข้า Upsell สำเร็จ ${success}/${selected.length} รายการ`);
+      loadUpsell();
+    };
+
+    const updateStatus = async (item, newStatus) => {
+      try {
+        await sb.update("fx_upsell", item.id, { status: newStatus, upsell_by: user.display_name });
+        setUpsellData(prev => prev.map(x => x.id === item.id ? { ...x, status: newStatus, upsell_by: user.display_name } : x));
+        showToast(newStatus === "success" ? "อัพเซลล์สำเร็จ ✅" : "ยกเลิกแล้ว");
+      } catch (e) { alert(e.message); }
+    };
+
+    const exportUpsell = () => {
+      if (!filtered.length) { alert("ไม่มีข้อมูล"); return; }
+      const bom = "\uFEFF";
+      const headers = ["ลำดับ","ชื่อ","เบอร์","ที่อยู่","หมายเหตุ/สินค้า","ยอด","สถานะ","ดำเนินการโดย","วันที่สร้าง"];
+      const rows = filtered.map((p, i) => [i+1, p.receiver_name, p.receiver_phone, p.receiver_address, p.remark, p.cod_amount||0, p.status==="success"?"สำเร็จ":p.status==="cancelled"?"ยกเลิก":"รอ", p.upsell_by||"", new Date(p.created_at).toLocaleString("th-TH")]);
+      const csv = bom + [headers, ...rows].map(r => r.map(v => `"${String(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `upsell-${upsellFilter}-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    };
+
+    const I = { padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontFamily: "inherit" };
+
+    return (
+      <div style={{ padding: 24 }}>
+        <div style={{ marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>💰 Upsell</h2>
+          <p style={{ margin: "4px 0 0", fontSize: 14, color: "#64748b" }}>Import รายชื่อ → เลือกอัพเซลล์ → Export ผลลัพธ์</p>
+        </div>
+
+        {/* Import Section */}
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", marginBottom: 20, overflow: "hidden" }}>
+          <div style={{ padding: "16px 24px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 12 }}>
+            <label style={{ padding: "10px 20px", background: "#f59e0b", color: "#fff", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>📥 Import Excel
+              <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); e.target.value = ""; }} />
+            </label>
+            {upsellRows.length > 0 && <span style={{ fontSize: 13, color: "#64748b" }}>พบ {upsellRows.length} รายการ</span>}
+            {upsellRows.length > 0 && <button onClick={handleImport} disabled={upsellImporting} style={{ padding: "10px 20px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}>{upsellImporting ? `กำลังนำเข้า ${upsellProgress}%` : `✅ นำเข้า ${upsellRows.filter(r => r._selected).length} รายการ`}</button>}
+          </div>
+          {upsellRows.length > 0 && (
+            <div style={{ maxHeight: 200, overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead><tr style={{ background: "#f8fafc" }}>
+                  <th style={{ padding: "6px 8px", width: 30 }}><input type="checkbox" checked={upsellRows.every(r => r._selected)} onChange={() => setUpsellRows(prev => { const all = prev.every(r => r._selected); return prev.map(r => ({ ...r, _selected: !all })); })} /></th>
+                  {["ชื่อ","เบอร์","ที่อยู่","หมายเหตุ","ยอด"].map((h,i) => <th key={i} style={{ padding: "6px 8px", textAlign: "left", fontWeight: 700, color: "#64748b" }}>{h}</th>)}
+                </tr></thead>
+                <tbody>{upsellRows.map((r, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: "5px 8px" }}><input type="checkbox" checked={r._selected} onChange={() => setUpsellRows(prev => prev.map((x, idx) => idx === i ? { ...x, _selected: !x._selected } : x))} /></td>
+                    <td style={{ padding: "5px 8px", fontWeight: 600 }}>{r.receiver_name}</td>
+                    <td style={{ padding: "5px 8px", fontFamily: "monospace" }}>{r.receiver_phone}</td>
+                    <td style={{ padding: "5px 8px", fontSize: 11, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }}>{r.receiver_address}</td>
+                    <td style={{ padding: "5px 8px", fontSize: 11 }}>{r.remark}</td>
+                    <td style={{ padding: "5px 8px", fontWeight: 600 }}>{r.cod_amount || ""}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Tabs + Search */}
+        <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e2e8f0", marginBottom: 16 }}>
+          {TABS.map(t => { const cnt = t.key === "ALL" ? upsellData.length : upsellData.filter(p => p.status === t.key).length; const active = upsellFilter === t.key; return <button key={t.key} onClick={() => setUpsellFilter(t.key)} style={{ padding: "12px 18px", border: "none", borderBottom: active ? `3px solid ${t.color}` : "3px solid transparent", background: "transparent", color: active ? t.color : "#64748b", fontSize: 13, fontWeight: active ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>{t.icon} {t.label}{cnt > 0 && <span style={{ background: active ? t.color : "#e2e8f0", color: active ? "#fff" : "#64748b", padding: "1px 7px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{cnt}</span>}</button>; })}
+        </div>
+        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+          <input value={upsellSearch} onChange={e => setUpsellSearch(e.target.value)} placeholder="🔍 ค้นหา ชื่อ, เบอร์..." style={{ ...I, flex: 1 }} />
+          <button onClick={loadUpsell} style={{ ...I, cursor: "pointer" }}>🔄</button>
+          <button onClick={exportUpsell} style={{ padding: "9px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>📤 Export ({filtered.length})</button>
+        </div>
+
+        {/* Table */}
+        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", overflow: "hidden" }}>
+          {!filtered.length ? <div style={{ padding: 50, textAlign: "center", color: "#9ca3af" }}><div style={{ fontSize: 36 }}>📭</div><div style={{ marginTop: 8, fontWeight: 600 }}>ไม่มีข้อมูล — Import Excel เพื่อเริ่มต้น</div></div> : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead><tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                  {["#","ชื่อ","เบอร์","ที่อยู่","หมายเหตุ/สินค้า","ยอด","สถานะ","โดย","วันที่","จัดการ"].map((h,i) => <th key={i} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>)}
+                </tr></thead>
+                <tbody>{filtered.map((p, i) => (
+                  <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 ? "#fafafa" : "#fff" }}>
+                    <td style={{ padding: "9px 12px", color: "#9ca3af", fontSize: 11 }}>{i + 1}</td>
+                    <td style={{ padding: "9px 12px", fontWeight: 600 }}>{p.receiver_name}</td>
+                    <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
+                    <td style={{ padding: "9px 12px", fontSize: 11, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.receiver_address || "—"}</td>
+                    <td style={{ padding: "9px 12px", fontSize: 12 }}>{p.remark || "—"}</td>
+                    <td style={{ padding: "9px 12px", fontWeight: 700, color: "#d97706" }}>{p.cod_amount ? `฿${Number(p.cod_amount).toLocaleString()}` : "—"}</td>
+                    <td style={{ padding: "9px 12px" }}><span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: p.status === "success" ? "#ecfdf5" : p.status === "cancelled" ? "#fef2f2" : "#fef3c7", color: p.status === "success" ? "#059669" : p.status === "cancelled" ? "#dc2626" : "#f59e0b" }}>{p.status === "success" ? "✅ สำเร็จ" : p.status === "cancelled" ? "❌ ยกเลิก" : "⏳ รอ"}</span></td>
+                    <td style={{ padding: "9px 12px", fontSize: 11, color: "#64748b" }}>{p.upsell_by || "—"}</td>
+                    <td style={{ padding: "9px 12px", fontSize: 11, whiteSpace: "nowrap" }}>{new Date(p.created_at).toLocaleDateString("th-TH", { day: "2-digit", month: "short" })}</td>
+                    <td style={{ padding: "9px 8px" }}>{p.status === "pending" && <div style={{ display: "flex", gap: 3 }}>
+                      <button onClick={() => updateStatus(p, "success")} style={{ padding: "4px 10px", background: "#059669", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✅ สำเร็จ</button>
+                      <button onClick={() => updateStatus(p, "cancelled")} style={{ padding: "4px 10px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>❌ ยกเลิก</button>
+                    </div>}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const ExportPage = () => {
     const [exportShop, setExportShop] = useState("");
     const [exportFrom, setExportFrom] = useState("");
@@ -2282,6 +2462,7 @@ export default function FlashBackend() {
           {activePage === "report" && <ReportPage />}
           {activePage === "evaluate" && <EvaluatePage />}
           {activePage === "import" && <ImportPage />}
+          {activePage === "upsell" && <UpsellPage />}
           {activePage === "export" && <ExportPage />}
           {activePage === "shops" && <ShopsPage />}
           {activePage === "users" && <UsersPage />}
