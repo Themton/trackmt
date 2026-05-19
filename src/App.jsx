@@ -1002,7 +1002,7 @@ export default function FlashBackend() {
   });
   const setActivePage = (p) => { setActivePageRaw(p); try { sessionStorage.setItem("fx_page", p); } catch {} };
   const [selectedShopFilter, setSelectedShopFilter] = useState("");
-  const PER_PAGE = 20;
+  const PER_PAGE = 100;
   const isDemo = SUPABASE_URL.includes("YOUR_PROJECT");
   const perm = user ? (CAN[user.role] || {}) : {};
 
