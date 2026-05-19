@@ -1692,38 +1692,7 @@ export default function FlashBackend() {
             const csv = bom + [headers, ...rows].map(r => r.map(v => `"${String(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
             const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
             const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `flash-status-${rptFilter === "ALL" ? "ทั้งหมด" : rptFilter}-${new Date().toISOString().slice(0,10)}.csv`; a.click();
-          }} style={{ padding: "10px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>📤 Export CSV ({filtered.length})</button>
-          {filtered.some(p => p.payment_slip) && <button onClick={() => {
-            const data = filtered;
-            const now = new Date().toLocaleString("th-TH");
-            const statusLabel = rptFilter === "ALL" ? "ทั้งหมด" : rptFilter;
-            const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>รายงานสถานะ Flash — ${statusLabel}</title>
-            <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'IBM Plex Sans Thai',sans-serif;padding:20px;background:#f9fafb}
-            h1{font-size:20px;margin-bottom:4px}p{color:#6b7280;margin-bottom:16px;font-size:13px}
-            table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)}
-            th{background:#f3f4f6;padding:8px 10px;text-align:left;font-weight:700;font-size:11px;color:#6b7280;border-bottom:2px solid #e5e7eb}
-            td{padding:8px 10px;border-bottom:1px solid #f3f4f6;vertical-align:top}
-            tr:nth-child(even){background:#fafafa}
-            .slip{max-width:120px;max-height:160px;border-radius:6px;border:1px solid #e5e7eb}
-            .badge{padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap}
-            @media print{body{padding:0}}</style></head><body>
-            <h1>🚚 รายงานสถานะ Flash — ${statusLabel}</h1>
-            <p>Export เมื่อ ${now} — ${data.length} รายการ</p>
-            <table><thead><tr><th>#</th><th>ลูกค้า</th><th>เบอร์</th><th>Tracking</th><th>สถานะ</th><th>COD</th><th>หมายเหตุ</th><th>สลิป</th></tr></thead><tbody>
-            ${data.map((p, i) => `<tr>
-              <td>${i+1}</td>
-              <td style="font-weight:600">${p.receiver_name}</td>
-              <td style="font-family:monospace">${p.receiver_phone}</td>
-              <td style="font-family:monospace;color:#0ea5e9">${p.flash_pno||""}</td>
-              <td><span class="badge" style="background:${p.flash_status==="เซ็นรับแล้ว"?"#d1fae5;color:#065f46":p.flash_status==="ส่งคืน"?"#fee2e2;color:#991b1b":"#fef3c7;color:#92400e"}">${p.flash_status||"สร้างรายการ"}</span></td>
-              <td style="font-weight:700;color:#d97706">${p.cod_enabled?"฿"+Number(p.cod_amount||0).toLocaleString():""}</td>
-              <td style="font-size:11px;color:#6b7280">${p.remark||""}</td>
-              <td>${p.payment_slip?`<img src="${p.payment_slip}" class="slip"/>`:""}</td>
-            </tr>`).join("")}
-            </tbody></table></body></html>`;
-            const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-            const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `flash-report-${statusLabel}-${new Date().toISOString().slice(0,10)}.html`; a.click();
-          }} style={{ padding: "10px 16px", background: "#7c3aed", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>🧾 Export + สลิป ({filtered.filter(p => p.payment_slip).length})</button>}
+          }} style={{ padding: "10px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>📤 Export ({filtered.length})</button>
         </div>
 
         {/* Table */}
@@ -2296,7 +2265,6 @@ export default function FlashBackend() {
                             {perm.status && p.flash_pno && p.status === "created" && <button title="เปลี่ยนเป็นปริ้นแล้ว" onClick={() => markPrinted(p)} style={{ width: 26, height: 26, border: "1px solid #6366f1", borderRadius: 4, background: "#eef2ff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🖨️</button>}
                             {perm.status && p.flash_pno && p.status === "printed" && <button title="เปลี่ยนกลับเป็นสร้างเลขแล้ว" onClick={() => markCreated(p)} style={{ width: 26, height: 26, border: "1px solid #f59e0b", borderRadius: 4, background: "#fffbeb", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>↩️</button>}
                             {perm.edit && !p.flash_pno && <button title="แก้ไข" onClick={() => { setEditParcel(p); setShowForm(true); }} style={{ width: 26, height: 26, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>✏️</button>}
-                            <label title="อัพโหลดสลิป" style={{ width: 26, height: 26, border: `1px solid ${p.payment_slip ? "#10b981" : "#e2e8f0"}`, borderRadius: 4, background: p.payment_slip ? "#ecfdf5" : "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{p.payment_slip ? "💚" : "🧾"}<input type="file" accept="image/*" hidden onChange={async (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (ev) => { const base64 = ev.target.result; setParcels(prev => prev.map(x => x.id === p.id ? { ...x, payment_slip: base64 } : x)); if (!isDemo) { try { await sb.update("fx_parcels", p.id, { payment_slip: base64 }); showToast("อัพโหลดสลิปสำเร็จ"); } catch(err) { alert("อัพโหลดไม่ได้: " + err.message); } } }; reader.readAsDataURL(file); }} /></label>
                             {p.flash_pno && <span title="มีเลข Tracking แล้ว — ยกเลิกเลขก่อนจึงจะแก้ไขได้" style={{ width: 26, height: 26, border: "1px solid #e5e7eb", borderRadius: 4, background: "#f9fafb", cursor: "not-allowed", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", opacity: .4 }}>🔒</span>}
                             {perm.delete && <button title="ลบ" onClick={() => handleDelete(p)} style={{ width: 26, height: 26, border: "1px solid #fca5a5", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>🗑️</button>}
                             <button title="ดูรายละเอียด" onClick={() => setViewParcel(p)} style={{ width: 26, height: 26, border: "1px solid #e2e8f0", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>👁️</button>
@@ -2348,8 +2316,6 @@ export default function FlashBackend() {
       {viewParcel && <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setViewParcel(null)}><div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 520, width: "95%", maxHeight: "85vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>📦 รายละเอียด</h3><button onClick={() => setViewParcel(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>✕</button></div>
         {[["Tracking", viewParcel.flash_pno || "—"], ["Sort Code", viewParcel.flash_sort_code || "—"], ["สถานะ Flash", viewParcel.flash_status || "—"], ["รายละเอียดล่าสุด", viewParcel.flash_detail || "—"], ["อัพเดตล่าสุด", viewParcel.flash_updated_at ? new Date(viewParcel.flash_updated_at).toLocaleString("th-TH") : "—"], ["── ผู้ส่ง ──", ""], ["ชื่อ", viewParcel.sender_name], ["เบอร์", viewParcel.sender_phone], ["── ผู้รับ ──", ""], ["ชื่อ", viewParcel.receiver_name], ["เบอร์", viewParcel.receiver_phone], ["ที่อยู่", `${viewParcel.receiver_address || ""} ${viewParcel.receiver_subdistrict || ""} ${viewParcel.receiver_district || ""} ${viewParcel.receiver_province || ""} ${viewParcel.receiver_postal || ""}`], ["── พัสดุ ──", ""], ["น้ำหนัก", `${viewParcel.weight || 1} kg`], ["สินค้า", viewParcel.item_desc || "—"], ...(perm.viewCOD ? [["COD", viewParcel.cod_enabled ? `฿${Number(viewParcel.cod_amount || 0).toLocaleString()}` : "ไม่มี"]] : []), ["หมายเหตุ", viewParcel.remark || "—"], ["ผู้สร้าง", viewParcel.created_by_name || "—"], ["สร้างเมื่อ", new Date(viewParcel.created_at).toLocaleString("th-TH")]].map(([l, v], i) => v === "" ? <div key={i} style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", padding: "10px 0 4px", borderBottom: "1px solid #f1f5f9" }}>{l}</div> : <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #f8fafc" }}><span style={{ fontSize: 13, color: "#64748b" }}>{l}</span><span style={{ fontSize: 13, fontWeight: 600, color: "#1e293b", textAlign: "right", maxWidth: "60%", wordBreak: "break-word" }}>{v}</span></div>)}
-        {viewParcel.payment_slip && <div style={{ marginTop: 12, textAlign: "center" }}><div style={{ fontSize: 12, fontWeight: 700, color: "#059669", marginBottom: 6 }}>💚 สลิปโอนเงิน</div><img src={viewParcel.payment_slip} style={{ maxWidth: "100%", maxHeight: 300, borderRadius: 8, border: "1px solid #e5e7eb" }} alt="slip" /></div>}
-        {!viewParcel.payment_slip && <div style={{ marginTop: 12, textAlign: "center", color: "#9ca3af", fontSize: 12 }}>ยังไม่มีสลิปโอนเงิน</div>}
         <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
           {perm.edit && !viewParcel.flash_pno && <button onClick={() => { setEditParcel(viewParcel); setShowForm(true); setViewParcel(null); }} style={{ flex: 1, padding: 11, background: "#e53e3e", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>✏️ แก้ไข</button>}
           {viewParcel.flash_pno && <div style={{ flex: 1, padding: 11, background: "#f3f4f6", borderRadius: 10, textAlign: "center", fontSize: 12, color: "#6b7280", fontWeight: 600 }}>🔒 ยกเลิกเลข Tracking ก่อนจึงจะแก้ไขได้</div>}
