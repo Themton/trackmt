@@ -622,6 +622,7 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
   const [importFailed, setImportFailed] = useState([]);
+  const [importTotal, setImportTotal] = useState(0);
   const [selectedShop, setSelectedShop] = useState(shops?.find(s => s.is_default)?.id || shops?.[0]?.id || "");
   const fileRef = useRef();
 
@@ -700,6 +701,7 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
     if (!selected.length) { alert("ไม่มีรายการที่เลือก"); return; }
     const shop = shops?.find(s => s.id === selectedShop);
     setImporting(true);
+    setImportTotal(selected.length);
     let success = 0;
     const failedItems = [];
     for (let i = 0; i < selected.length; i++) {
@@ -768,7 +770,7 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
       </>)}
       {importing && <div style={{ padding: 40, textAlign: "center" }}>
         <div style={{ fontSize: 40 }}>{done ? (importFailed.length > 0 ? "⚠️" : "✅") : "⏳"}</div>
-        <div style={{ fontSize: 16, fontWeight: 700, marginTop: 12 }}>{done ? (importFailed.length > 0 ? `นำเข้าสำเร็จ ${selected.length - importFailed.length}/${selected.length} รายการ` : "สำเร็จ!") : `กำลังนำเข้า... ${progress}%`}</div>
+        <div style={{ fontSize: 16, fontWeight: 700, marginTop: 12 }}>{done ? (importFailed.length > 0 ? `นำเข้าสำเร็จ ${importTotal - importFailed.length}/${importTotal} รายการ` : "สำเร็จ!") : `กำลังนำเข้า... ${progress}%`}</div>
         <div style={{ width: "100%", height: 8, background: "#e2e8f0", borderRadius: 4, marginTop: 12 }}><div style={{ width: `${progress}%`, height: "100%", background: importFailed.length > 0 ? "#f59e0b" : "#059669", borderRadius: 4 }} /></div>
         {done && importFailed.length > 0 && (<div style={{ marginTop: 16 }}>
           <div style={{ fontSize: 14, color: "#dc2626", fontWeight: 700, marginBottom: 8 }}>❌ {importFailed.length} รายการนำเข้าไม่สำเร็จ:</div>
@@ -844,7 +846,7 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
           {importing && (
             <div style={{ textAlign: "center", padding: 40 }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>{done ? (importFailed.length > 0 ? "⚠️" : "✅") : "⏳"}</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>{done ? (importFailed.length > 0 ? `นำเข้าสำเร็จ ${selected.length - importFailed.length}/${selected.length} รายการ` : "นำเข้าสำเร็จ!") : `กำลังนำเข้า... ${progress}%`}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>{done ? (importFailed.length > 0 ? `นำเข้าสำเร็จ ${importTotal - importFailed.length}/${importTotal} รายการ` : "นำเข้าสำเร็จ!") : `กำลังนำเข้า... ${progress}%`}</div>
               <div style={{ width: "100%", height: 8, background: "#e2e8f0", borderRadius: 4, marginTop: 12 }}>
                 <div style={{ width: `${progress}%`, height: "100%", background: importFailed.length > 0 ? "#f59e0b" : "#059669", borderRadius: 4, transition: ".3s" }} />
               </div>
