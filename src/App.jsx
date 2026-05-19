@@ -1197,8 +1197,17 @@ export default function FlashBackend() {
     sb.broadcastChange();
     if (errors.length) {
       alert(`❌ สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ\n\nรายการที่ไม่สำเร็จ:\n${errors.slice(0, 20).join("\n")}${errors.length > 20 ? "\n... อีก " + (errors.length - 20) + " รายการ" : ""}`);
-    } else {
-      showToast(`สร้างเลข Tracking สำเร็จ ${success}/${targets.length} รายการ`);
+    }
+    if (success > 0) {
+      showToast(`สร้างเลข Tracking สำเร็จ ${success} รายการ`);
+      const createdIds = new Set(targets.map(t => t.id));
+      setTimeout(() => {
+        setParcels(prev => {
+          const created = prev.filter(p => createdIds.has(p.id) && p.flash_pno);
+          if (created.length > 0) setPrintPreview(created.map(p => ({ ...p })));
+          return prev;
+        });
+      }, 300);
     }
     setSelectedIds(new Set());
   };
