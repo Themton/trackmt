@@ -2419,6 +2419,19 @@ export default function FlashBackend() {
 
             {/* TABLE */}
             <div style={{ padding: "0 24px 24px" }}>
+              {/* กรองยอด + ปริ้น — แสดงเมื่อเลือกแท็บ สร้างเลขพัสดุแล้ว */}
+              {statusFilter === "created" && filtered.length > 0 && (
+                <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "12px 16px", background: "#ecfdf5", borderRadius: 12, marginBottom: 12, border: "1px solid #a7f3d0" }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#059669" }}>🖨️ ปริ้นตามยอด:</span>
+                  <select value={codFilter} onChange={e => { setCodFilter(e.target.value); setPage(0); }} style={{ padding: "8px 12px", border: "1.5px solid #a7f3d0", borderRadius: 8, fontSize: 13, fontFamily: "inherit", fontWeight: 700, color: codFilter ? "#d97706" : "#059669", background: "#fff" }}>
+                    <option value="">ทั้งหมด ({filtered.length})</option>
+                    <option value="cod">มี COD ({filtered.filter(p => Number(p.cod_amount) > 0).length})</option>
+                    <option value="nocod">ไม่มี COD ({filtered.filter(p => !Number(p.cod_amount)).length})</option>
+                    {[...new Set(filtered.filter(p => Number(p.cod_amount) > 0).map(p => Number(p.cod_amount)))].sort((a, b) => a - b).map(v => <option key={v} value={v}>฿{v.toLocaleString()} ({filtered.filter(p => Number(p.cod_amount) === v).length})</option>)}
+                  </select>
+                  {(() => { const printable = filtered.filter(p => p.flash_pno); return printable.length > 0 && <button onClick={() => setPrintPreview(printable.map(p => ({ ...p })))} style={{ padding: "8px 18px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>🖨️ ปริ้น ({printable.length})</button>; })()}
+                </div>
+              )}
               <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", overflow: "hidden" }}>
                 {/* Batch Action Bar */}
                 {selectedIds.size > 0 && perm.status && (
