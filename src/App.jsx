@@ -2425,15 +2425,7 @@ export default function FlashBackend() {
                   <div style={{ padding: "10px 16px", background: "linear-gradient(135deg,#eef2ff,#faf5ff)", borderBottom: "1px solid #c7d2fe", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#4f46e5" }}>✓ เลือก {selectedIds.size} รายการ</span>
                     <button onClick={batchCreateFlash} disabled={!!batchProgress} style={{ padding: "7px 16px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚡ สร้างเลข Tracking ({selectedCounts.noTracking})</button>
-                    <span style={{ borderLeft: "2px solid #c7d2fe", height: 24 }} />
-                    <select value={codFilter} onChange={e => { setCodFilter(e.target.value); setPage(0); }} style={{ padding: "6px 10px", border: "1.5px solid #c7d2fe", borderRadius: 8, fontSize: 12, fontFamily: "inherit", fontWeight: 700, color: codFilter ? "#d97706" : "#64748b", background: "#fff" }}>
-                      <option value="">💰 ทุกยอด</option>
-                      <option value="cod">มี COD</option>
-                      <option value="nocod">ไม่มี COD</option>
-                      {[...new Set(parcels.filter(p => selectedIds.has(p.id) && Number(p.cod_amount) > 0).map(p => Number(p.cod_amount)))].sort((a, b) => a - b).map(v => <option key={v} value={v}>฿{v.toLocaleString()}</option>)}
-                    </select>
                     <button onClick={batchPrint} style={{ padding: "7px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🖨️ ปริ้น ({selectedCounts.hasTracking})</button>
-                    <span style={{ borderLeft: "2px solid #c7d2fe", height: 24 }} />
                     <button onClick={batchMarkPrinted} style={{ padding: "7px 16px", background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🖨️ เปลี่ยนเป็นปริ้นแล้ว ({selectedCounts.canMarkPrinted})</button>
                     {perm.delete && <button onClick={batchDelete} style={{ padding: "7px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🗑️ ลบ ({selectedIds.size})</button>}
                     <button onClick={() => setSelectedIds(new Set())} style={{ padding: "7px 14px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
@@ -2523,11 +2515,22 @@ export default function FlashBackend() {
             <button onClick={() => setPrintPreview(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>✕</button>
           </div>
 
-          {/* กรองตามราคา */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <button onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: true })))} style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: printPreview.every(p => p._print !== false) ? "#4f46e5" : "#f1f5f9", color: printPreview.every(p => p._print !== false) ? "#fff" : "#475569", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>ทั้งหมด ({printPreview.length})</button>
-            <button onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: Number(p.cod_amount) > 0 })))} style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: printPreview.filter(p => p._print !== false).every(p => Number(p.cod_amount) > 0) && !printPreview.every(p => p._print !== false) ? "#f59e0b" : "#f1f5f9", color: printPreview.filter(p => p._print !== false).every(p => Number(p.cod_amount) > 0) && !printPreview.every(p => p._print !== false) ? "#fff" : "#475569", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>มี COD ({printPreview.filter(p => Number(p.cod_amount) > 0).length})</button>
-            <button onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: !Number(p.cod_amount) })))} style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: printPreview.filter(p => p._print !== false).every(p => !Number(p.cod_amount)) && !printPreview.every(p => p._print !== false) ? "#6366f1" : "#f1f5f9", color: printPreview.filter(p => p._print !== false).every(p => !Number(p.cod_amount)) && !printPreview.every(p => p._print !== false) ? "#fff" : "#475569", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>ไม่มี COD ({printPreview.filter(p => !Number(p.cod_amount)).length})</button>
+          {/* กรองตามยอด */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#64748b" }}>กรอง:</span>
+            <select onChange={e => {
+              const v = e.target.value;
+              if (v === "") setPrintPreview(prev => prev.map(p => ({ ...p, _print: true })));
+              else if (v === "cod") setPrintPreview(prev => prev.map(p => ({ ...p, _print: Number(p.cod_amount) > 0 })));
+              else if (v === "nocod") setPrintPreview(prev => prev.map(p => ({ ...p, _print: !Number(p.cod_amount) })));
+              else setPrintPreview(prev => prev.map(p => ({ ...p, _print: Number(p.cod_amount) === Number(v) })));
+            }} style={{ padding: "8px 14px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 13, fontFamily: "inherit", fontWeight: 700 }}>
+              <option value="">ทั้งหมด ({printPreview.length})</option>
+              <option value="cod">มี COD ({printPreview.filter(p => Number(p.cod_amount) > 0).length})</option>
+              <option value="nocod">ไม่มี COD ({printPreview.filter(p => !Number(p.cod_amount)).length})</option>
+              {[...new Set(printPreview.filter(p => Number(p.cod_amount) > 0).map(p => Number(p.cod_amount)))].sort((a, b) => a - b).map(v => <option key={v} value={v}>฿{v.toLocaleString()} ({printPreview.filter(p => Number(p.cod_amount) === v).length})</option>)}
+            </select>
+            <span style={{ fontSize: 13, color: "#059669", fontWeight: 700 }}>→ ปริ้น {printPreview.filter(p => p._print !== false).length} ใบ</span>
           </div>
 
           {/* รายการ */}
