@@ -1002,6 +1002,7 @@ export default function FlashBackend() {
   });
   const setActivePage = (p) => { setActivePageRaw(p); try { sessionStorage.setItem("fx_page", p); } catch {} };
   const [selectedShopFilter, setSelectedShopFilter] = useState("");
+  const [codFilter, setCodFilter] = useState("");
   const PER_PAGE = 100;
   const isDemo = SUPABASE_URL.includes("YOUR_PROJECT");
   const perm = user ? (CAN[user.role] || {}) : {};
@@ -1060,9 +1061,12 @@ export default function FlashBackend() {
     let list = parcels;
     if (selectedShopFilter) list = list.filter(p => p.shop_id === selectedShopFilter);
     if (statusFilter !== "ALL") list = list.filter(p => p.status === statusFilter);
+    if (codFilter === "cod") list = list.filter(p => Number(p.cod_amount) > 0);
+    else if (codFilter === "nocod") list = list.filter(p => !Number(p.cod_amount));
+    else if (codFilter) list = list.filter(p => Number(p.cod_amount) === Number(codFilter));
     if (search) { const q = search.toLowerCase(); list = list.filter(p => [p.parcel_no, p.receiver_name, p.receiver_phone, p.flash_pno, p.receiver_province, p.created_by_name].some(v => (v || "").toLowerCase().includes(q))); }
     return list;
-  }, [parcels, search, selectedShopFilter, statusFilter]);
+  }, [parcels, search, selectedShopFilter, statusFilter, codFilter]);
 
   const paged = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
@@ -2381,11 +2385,13 @@ export default function FlashBackend() {
                 <option value="">🏪 ทุกร้าน</option>
                 {shops.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>}
-              <button onClick={() => {
-                const trackable = filtered.filter(p => p.flash_pno && p.status !== "cancelled");
-                if (!trackable.length) { alert("ไม่มีรายการที่มีเลข Tracking"); return; }
-                setPrintPreview(trackable.map(p => ({ ...p })));
-              }} style={{ padding: "9px 14px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>🖨️ ปริ้นตามยอด ({filtered.filter(p => p.flash_pno && p.status !== "cancelled").length})</button>
+              <select value={codFilter} onChange={e => { setCodFilter(e.target.value); setPage(0); }} style={{ padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontFamily: "inherit", fontWeight: 600, color: codFilter ? "#d97706" : "#64748b", minWidth: 100 }}>
+                <option value="">💰 ทุกยอด</option>
+                <option value="cod">มี COD</option>
+                <option value="nocod">ไม่มี COD</option>
+                {[...new Set(parcels.filter(p => Number(p.cod_amount) > 0).map(p => Number(p.cod_amount)))].sort((a, b) => a - b).map(v => <option key={v} value={v}>฿{v.toLocaleString()}</option>)}
+              </select>
+              {(() => { const printable = filtered.filter(p => p.flash_pno && p.status !== "cancelled"); return printable.length > 0 && <button onClick={() => setPrintPreview(printable.map(p => ({ ...p })))} style={{ padding: "9px 14px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>🖨️ ปริ้น ({printable.length})</button>; })()}
               {perm.create && <button onClick={() => { setEditParcel(null); setShowForm(true); }} style={{ padding: "9px 18px", background: "#dc2626", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>＋ สร้างพัสดุ</button>}
             </div>
           </div>
