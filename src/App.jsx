@@ -1450,7 +1450,7 @@ export default function FlashBackend() {
         m.total++;
         const fs = p.flash_status || "";
         if (fs === "เซ็นรับแล้ว") { m.delivered++; if (p.cod_enabled) m.codDelivered += Number(p.cod_amount || 0); }
-        else if (fs === "ส่งคืน" || fs === "คืนสำเร็จ") m.returned++;
+        else if (fs.includes("ส่งคืน") || fs.includes("คืนสำเร็จ") || fs.includes("นำส่งไม่สำเร็จ") || fs.includes("ตีกลับ") || fs.includes("ส่งกลับ")) m.returned++;
         else if (fs === "รับพัสดุแล้ว" || fs === "อยู่ในระบบขนส่ง" || fs === "กำลังจัดส่ง") m.inTransit++;
         else if (p.status === "cancelled") m.cancelled++;
         else m.waiting++;
@@ -1458,7 +1458,7 @@ export default function FlashBackend() {
         const prov = p.receiver_province || "ไม่ระบุ";
         if (!m.provinces[prov]) m.provinces[prov] = { total: 0, returned: 0 };
         m.provinces[prov].total++;
-        if (fs === "ส่งคืน" || fs === "คืนสำเร็จ") m.provinces[prov].returned++;
+        if (fs.includes("ส่งคืน") || fs.includes("คืนสำเร็จ") || fs.includes("นำส่งไม่สำเร็จ") || fs.includes("ตีกลับ") || fs.includes("ส่งกลับ")) m.provinces[prov].returned++;
       });
       return Object.entries(map).map(([name, d]) => {
         const completed = d.delivered + d.returned;
@@ -1649,20 +1649,25 @@ export default function FlashBackend() {
       { key: "อยู่ในระบบขนส่ง", label: "ในระบบขนส่ง", icon: "🚛", color: "#8b5cf6" },
       { key: "กำลังจัดส่ง", label: "กำลังจัดส่ง", icon: "🛵", color: "#3b82f6" },
       { key: "เซ็นรับแล้ว", label: "เซ็นรับแล้ว", icon: "✅", color: "#10b981" },
-      { key: "ส่งคืน", label: "ส่งคืน", icon: "↩️", color: "#ef4444" },
+      { key: "RETURN_ALL", label: "ตีกลับทั้งหมด", icon: "↩️", color: "#ef4444" },
+      { key: "นำส่งไม่สำเร็จ", label: "นำส่งไม่สำเร็จ", icon: "❌", color: "#f97316" },
+      { key: "ส่งคืน", label: "กำลังส่งคืน", icon: "🔄", color: "#ef4444" },
       { key: "คืนสำเร็จ", label: "คืนสำเร็จ", icon: "📦", color: "#6b7280" },
     ];
+
+    const RETURN_STATUSES = ["ส่งคืน", "คืนสำเร็จ", "นำส่งไม่สำเร็จ", "ตีกลับ", "ส่งกลับ"];
 
     const filtered = useMemo(() => {
       let list = tracked;
       if (rptShop) list = list.filter(p => p.shop_id === rptShop);
       if (rptFilter !== "ALL") {
         if (rptFilter === "สร้างรายการ") list = list.filter(p => !p.flash_status || p.flash_status === "" || p.flash_status === "สร้างรายการ");
-        else list = list.filter(p => p.flash_status === rptFilter);
+        else if (rptFilter === "RETURN_ALL") list = list.filter(p => RETURN_STATUSES.some(s => (p.flash_status || "").includes(s)));
+        else list = list.filter(p => (p.flash_status || "").includes(rptFilter));
       }
       if (rptSearch) {
         const q = rptSearch.toLowerCase();
-        list = list.filter(p => (p.receiver_name || "").toLowerCase().includes(q) || (p.receiver_phone || "").includes(q) || (p.flash_pno || "").toLowerCase().includes(q));
+        list = list.filter(p => (p.receiver_name || "").toLowerCase().includes(q) || (p.receiver_phone || "").includes(q) || (p.flash_pno || "").toLowerCase().includes(q) || (p.flash_detail || "").toLowerCase().includes(q));
       }
       return list;
     }, [tracked, rptFilter, rptShop, rptSearch]);
@@ -1675,7 +1680,8 @@ export default function FlashBackend() {
       let list = rptShop ? tracked.filter(p => p.shop_id === rptShop) : tracked;
       if (key === "ALL") return list.length;
       if (key === "สร้างรายการ") return list.filter(p => !p.flash_status || p.flash_status === "" || p.flash_status === "สร้างรายการ").length;
-      return list.filter(p => p.flash_status === key).length;
+      if (key === "RETURN_ALL") return list.filter(p => RETURN_STATUSES.some(s => (p.flash_status || "").includes(s))).length;
+      return list.filter(p => (p.flash_status || "").includes(key)).length;
     };
 
     const getStatusStyle = (fs) => {
