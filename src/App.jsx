@@ -621,6 +621,7 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
+  const [importFailed, setImportFailed] = useState([]);
   const [selectedShop, setSelectedShop] = useState(shops?.find(s => s.is_default)?.id || shops?.[0]?.id || "");
   const fileRef = useRef();
 
@@ -700,6 +701,7 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
     const shop = shops?.find(s => s.id === selectedShop);
     setImporting(true);
     let success = 0;
+    const failedItems = [];
     for (let i = 0; i < selected.length; i++) {
       const r = selected[i];
       try {
@@ -722,15 +724,19 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
         };
         await sb.insert("fx_parcels", parcelData);
         success++;
-      } catch (err) { console.warn("Import failed:", r.receiver_name, err.message); }
+      } catch (err) {
+        console.warn("Import failed:", r.receiver_name, err.message);
+        failedItems.push({ ...r, _error: err.message });
+      }
       setProgress(Math.round(((i + 1) / selected.length) * 100));
       if (i % 5 === 4) await new Promise(r => setTimeout(r, 500));
     }
     setDone(true);
     sb.broadcastChange();
-    const failed = selected.length - success;
-    if (failed > 0) alert(`นำเข้าสำเร็จ ${success}/${selected.length} รายการ\n\n${failed} รายการล้มเหลว — ตรวจสอบข้อมูลในไฟล์`);
-    setTimeout(() => onSave(), 1000);
+    if (failedItems.length > 0) {
+      setImportFailed(failedItems);
+    }
+    setTimeout(() => { if (failedItems.length === 0) onSave(); }, 1000);
   };
 
   const toggleRow = (i) => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, _selected: !r._selected } : r));
@@ -760,7 +766,20 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
         <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 12, background: "#fff" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ background: "#f8fafc" }}><th style={{ padding: 8, width: 30 }}>✓</th><th style={{ padding: 8, textAlign: "left" }}>ชื่อ</th><th style={{ padding: 8, textAlign: "left" }}>เบอร์</th><th style={{ padding: 8, textAlign: "left" }}>อำเภอ</th><th style={{ padding: 8, textAlign: "right" }}>COD</th></tr></thead><tbody>{rows.map((r, i) => <tr key={i} style={{ borderTop: "1px solid #f1f5f9", opacity: r._selected ? 1 : .4 }}><td style={{ padding: 8, textAlign: "center" }}><input type="checkbox" checked={r._selected} onChange={() => toggleRow(i)} /></td><td style={{ padding: 8, fontWeight: 600 }}>{r.receiver_name}</td><td style={{ padding: 8, fontFamily: "monospace" }}>{r.receiver_phone}</td><td style={{ padding: 8 }}>{r.receiver_district}</td><td style={{ padding: 8, textAlign: "right", fontWeight: 600, color: r.cod_amount > 0 ? "#d97706" : "#cbd5e1" }}>{r.cod_amount > 0 ? `฿${r.cod_amount}` : "—"}</td></tr>)}</tbody></table></div>
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}><button onClick={handleImport} style={{ flex: 1, padding: 14, background: "#059669", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>📥 นำเข้า {rows.filter(r => r._selected).length} รายการ</button><button onClick={() => setRows([])} style={{ padding: "14px 20px", background: "#f1f5f9", border: "none", borderRadius: 12, fontWeight: 600, cursor: "pointer" }}>เลือกไฟล์ใหม่</button></div>
       </>)}
-      {importing && <div style={{ padding: 40, textAlign: "center" }}><div style={{ fontSize: 40 }}>{done ? "✅" : "⏳"}</div><div style={{ fontSize: 16, fontWeight: 700, marginTop: 12 }}>{done ? "สำเร็จ!" : `กำลังนำเข้า... ${progress}%`}</div><div style={{ width: "100%", height: 8, background: "#e2e8f0", borderRadius: 4, marginTop: 12 }}><div style={{ width: `${progress}%`, height: "100%", background: "#059669", borderRadius: 4 }} /></div></div>}
+      {importing && <div style={{ padding: 40, textAlign: "center" }}>
+        <div style={{ fontSize: 40 }}>{done ? (importFailed.length > 0 ? "⚠️" : "✅") : "⏳"}</div>
+        <div style={{ fontSize: 16, fontWeight: 700, marginTop: 12 }}>{done ? (importFailed.length > 0 ? `นำเข้าสำเร็จ ${selected.length - importFailed.length}/${selected.length} รายการ` : "สำเร็จ!") : `กำลังนำเข้า... ${progress}%`}</div>
+        <div style={{ width: "100%", height: 8, background: "#e2e8f0", borderRadius: 4, marginTop: 12 }}><div style={{ width: `${progress}%`, height: "100%", background: importFailed.length > 0 ? "#f59e0b" : "#059669", borderRadius: 4 }} /></div>
+        {done && importFailed.length > 0 && (<div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 14, color: "#dc2626", fontWeight: 700, marginBottom: 8 }}>❌ {importFailed.length} รายการนำเข้าไม่สำเร็จ:</div>
+          <div style={{ maxHeight: 150, overflow: "auto", textAlign: "left", background: "#fef2f2", borderRadius: 8, padding: 12, fontSize: 12, marginBottom: 12 }}>
+            {importFailed.map((f, i) => <div key={i} style={{ padding: "4px 0", borderBottom: "1px solid #fecaca" }}>❌ {f.receiver_name} ({f.receiver_phone}) — <span style={{ color: "#999" }}>{f._error}</span></div>)}
+          </div>
+          <button onClick={() => { const bom = "\uFEFF"; const headers = ["ชื่อ","เบอร์","ที่อยู่","ตำบล","อำเภอ","จังหวัด","ไปรษณีย์","COD","หมายเหตุ","สาเหตุ"]; const csvRows = importFailed.map(f => [f.receiver_name,f.receiver_phone,f.receiver_address,f.receiver_subdistrict,f.receiver_district,f.receiver_province,f.receiver_postal,f.cod_amount||"",f.remark||"",f._error].map(v => `"${String(v||"").replace(/"/g,'""')}"`).join(",")); const csv = bom + [headers.join(","), ...csvRows].join("\n"); const blob = new Blob([csv], { type: "text/csv;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `import-failed-${new Date().toISOString().slice(0,10)}.csv`; a.click(); }} style={{ padding: "10px 24px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>📥 ดาวน์โหลดรายการที่ล้มเหลว ({importFailed.length} รายการ)</button>
+          <button onClick={onSave} style={{ padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer", marginLeft: 8 }}>✅ ตกลง</button>
+        </div>)}
+        {done && importFailed.length === 0 && <button onClick={onSave} style={{ marginTop: 16, padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>✅ ตกลง</button>}
+      </div>}
     </div>
   );
 
@@ -824,11 +843,22 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
           {/* Progress */}
           {importing && (
             <div style={{ textAlign: "center", padding: 40 }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>{done ? "✅" : "⏳"}</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>{done ? "นำเข้าสำเร็จ!" : `กำลังนำเข้า... ${progress}%`}</div>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>{done ? (importFailed.length > 0 ? "⚠️" : "✅") : "⏳"}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#1e293b" }}>{done ? (importFailed.length > 0 ? `นำเข้าสำเร็จ ${selected.length - importFailed.length}/${selected.length} รายการ` : "นำเข้าสำเร็จ!") : `กำลังนำเข้า... ${progress}%`}</div>
               <div style={{ width: "100%", height: 8, background: "#e2e8f0", borderRadius: 4, marginTop: 12 }}>
-                <div style={{ width: `${progress}%`, height: "100%", background: "#059669", borderRadius: 4, transition: ".3s" }} />
+                <div style={{ width: `${progress}%`, height: "100%", background: importFailed.length > 0 ? "#f59e0b" : "#059669", borderRadius: 4, transition: ".3s" }} />
               </div>
+              {done && importFailed.length > 0 && (<div style={{ marginTop: 16, textAlign: "left" }}>
+                <div style={{ fontSize: 14, color: "#dc2626", fontWeight: 700, marginBottom: 8, textAlign: "center" }}>❌ {importFailed.length} รายการนำเข้าไม่สำเร็จ</div>
+                <div style={{ maxHeight: 150, overflow: "auto", background: "#fef2f2", borderRadius: 8, padding: 12, fontSize: 12, marginBottom: 12 }}>
+                  {importFailed.map((f, i) => <div key={i} style={{ padding: "4px 0", borderBottom: "1px solid #fecaca" }}>❌ {f.receiver_name} ({f.receiver_phone}) — <span style={{ color: "#999" }}>{f._error}</span></div>)}
+                </div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                  <button onClick={() => { const bom = "\uFEFF"; const headers = ["ชื่อ","เบอร์","ที่อยู่","ตำบล","อำเภอ","จังหวัด","ไปรษณีย์","COD","หมายเหตุ","สาเหตุ"]; const csvRows = importFailed.map(f => [f.receiver_name,f.receiver_phone,f.receiver_address,f.receiver_subdistrict,f.receiver_district,f.receiver_province,f.receiver_postal,f.cod_amount||"",f.remark||"",f._error].map(v => `"${String(v||"").replace(/"/g,'""')}"`).join(",")); const csv = bom + [headers.join(","), ...csvRows].join("\n"); const blob = new Blob([csv], { type: "text/csv;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `import-failed-${new Date().toISOString().slice(0,10)}.csv`; a.click(); }} style={{ padding: "10px 24px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>📥 ดาวน์โหลดรายการที่ล้มเหลว</button>
+                  <button onClick={onSave} style={{ padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>✅ ตกลง</button>
+                </div>
+              </div>)}
+              {done && importFailed.length === 0 && <button onClick={onSave} style={{ marginTop: 16, padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>✅ ตกลง</button>}
             </div>
           )}
         </div>
