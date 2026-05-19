@@ -1701,6 +1701,12 @@ export default function FlashBackend() {
         <div style={{ marginBottom: 20 }}>
           <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#111" }}>🚚 รายงานสถานะพัสดุ Flash</h2>
           <p style={{ margin: "4px 0 0", fontSize: 14, color: "#6b7280" }}>ติดตามสถานะขนส่งแบบเรียลไทม์ — อัพเดตอัตโนมัติทุก 5 นาที</p>
+          <div style={{ marginTop: 12, padding: "10px 16px", background: "#fef2f2", borderRadius: 10, border: "1px solid #fecaca", fontSize: 12, color: "#7f1d1d", display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 700 }}>↩️ ตีกลับทั้งหมด</span><span>= รวมทุกสถานะตีกลับ</span>
+            <span style={{ borderLeft: "1px solid #fca5a5", paddingLeft: 12 }}>❌ <b>นำส่งไม่สำเร็จ</b> = ส่งไม่ได้ (ไม่มีคนรับ/ปฏิเสธ/ที่อยู่ผิด)</span>
+            <span style={{ borderLeft: "1px solid #fca5a5", paddingLeft: 12 }}>🔄 <b>กำลังส่งคืน</b> = พัสดุกำลังส่งกลับ</span>
+            <span style={{ borderLeft: "1px solid #fca5a5", paddingLeft: 12 }}>📦 <b>คืนสำเร็จ</b> = ส่งคืนถึงผู้ส่งแล้ว</span>
+          </div>
         </div>
 
         {/* Summary Cards */}
