@@ -2381,6 +2381,11 @@ export default function FlashBackend() {
                 <option value="">🏪 ทุกร้าน</option>
                 {shops.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>}
+              <button onClick={() => {
+                const trackable = filtered.filter(p => p.flash_pno && p.status === "created");
+                if (!trackable.length) { alert("ไม่มีรายการที่สร้างเลขแล้วยังไม่ปริ้น"); return; }
+                setPrintPreview(trackable.map(p => ({ ...p })));
+              }} style={{ padding: "9px 14px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>🖨️ ปริ้นตามยอด ({filtered.filter(p => p.flash_pno && p.status === "created").length})</button>
               {perm.create && <button onClick={() => { setEditParcel(null); setShowForm(true); }} style={{ padding: "9px 18px", background: "#dc2626", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>＋ สร้างพัสดุ</button>}
             </div>
           </div>
