@@ -2494,7 +2494,6 @@ export default function FlashBackend() {
 
       {/* PRINT PREVIEW — กรองราคาก่อนปริ้น */}
       {printPreview && (() => {
-        const allPrices = [...new Set(printPreview.map(p => Number(p.cod_amount || 0)))].sort((a, b) => a - b);
         return <div style={{ position: "fixed", inset: 0, zIndex: 9500, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setPrintPreview(null)}>
         <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 600, width: "95%", maxHeight: "85vh", overflowY: "auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
@@ -2503,20 +2502,10 @@ export default function FlashBackend() {
           </div>
 
           {/* กรองตามราคา */}
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", marginBottom: 6 }}>กรองตามราคา:</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <button onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: true })))} style={{ padding: "6px 14px", border: "1.5px solid #e2e8f0", borderRadius: 8, background: printPreview.every(p => p._print !== false) ? "#4f46e5" : "#fff", color: printPreview.every(p => p._print !== false) ? "#fff" : "#475569", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>📋 ทั้งหมด ({printPreview.length})</button>
-              {printPreview.some(p => Number(p.cod_amount) > 0) && <button onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: Number(p.cod_amount) > 0 })))} style={{ padding: "6px 14px", border: "1.5px solid #f59e0b", borderRadius: 8, background: printPreview.filter(p => p._print !== false).length === printPreview.filter(p => Number(p.cod_amount) > 0).length && printPreview.filter(p => p._print !== false).every(p => Number(p.cod_amount) > 0) ? "#f59e0b" : "#fff", color: printPreview.filter(p => p._print !== false).length === printPreview.filter(p => Number(p.cod_amount) > 0).length && printPreview.filter(p => p._print !== false).every(p => Number(p.cod_amount) > 0) ? "#fff" : "#92400e", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>💰 มี COD ({printPreview.filter(p => Number(p.cod_amount) > 0).length})</button>}
-              {printPreview.some(p => !Number(p.cod_amount)) && <button onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: !Number(p.cod_amount) })))} style={{ padding: "6px 14px", border: "1.5px solid #6366f1", borderRadius: 8, background: printPreview.filter(p => p._print !== false).length === printPreview.filter(p => !Number(p.cod_amount)).length && printPreview.filter(p => p._print !== false).every(p => !Number(p.cod_amount)) ? "#6366f1" : "#fff", color: printPreview.filter(p => p._print !== false).length === printPreview.filter(p => !Number(p.cod_amount)).length && printPreview.filter(p => p._print !== false).every(p => !Number(p.cod_amount)) ? "#fff" : "#4338ca", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>📦 ไม่มี COD ({printPreview.filter(p => !Number(p.cod_amount)).length})</button>}
-              <span style={{ borderLeft: "2px solid #e2e8f0", margin: "0 4px" }} />
-              {allPrices.filter(p => p > 0).map(price => {
-                const cnt = printPreview.filter(p => Number(p.cod_amount || 0) === price).length;
-                const selected = printPreview.filter(p => p._print !== false);
-                const active = selected.length === cnt && selected.every(p => Number(p.cod_amount || 0) === price);
-                return <button key={price} onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: Number(p.cod_amount || 0) === price })))} style={{ padding: "6px 14px", border: "1.5px solid #e2e8f0", borderRadius: 8, background: active ? "#059669" : "#fff", color: active ? "#fff" : "#475569", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>฿{price.toLocaleString()} ({cnt})</button>;
-              })}
-            </div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <button onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: true })))} style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: printPreview.every(p => p._print !== false) ? "#4f46e5" : "#f1f5f9", color: printPreview.every(p => p._print !== false) ? "#fff" : "#475569", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>ทั้งหมด ({printPreview.length})</button>
+            <button onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: Number(p.cod_amount) > 0 })))} style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: printPreview.filter(p => p._print !== false).every(p => Number(p.cod_amount) > 0) && !printPreview.every(p => p._print !== false) ? "#f59e0b" : "#f1f5f9", color: printPreview.filter(p => p._print !== false).every(p => Number(p.cod_amount) > 0) && !printPreview.every(p => p._print !== false) ? "#fff" : "#475569", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>มี COD ({printPreview.filter(p => Number(p.cod_amount) > 0).length})</button>
+            <button onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: !Number(p.cod_amount) })))} style={{ padding: "8px 16px", border: "none", borderRadius: 8, background: printPreview.filter(p => p._print !== false).every(p => !Number(p.cod_amount)) && !printPreview.every(p => p._print !== false) ? "#6366f1" : "#f1f5f9", color: printPreview.filter(p => p._print !== false).every(p => !Number(p.cod_amount)) && !printPreview.every(p => p._print !== false) ? "#fff" : "#475569", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>ไม่มี COD ({printPreview.filter(p => !Number(p.cod_amount)).length})</button>
           </div>
 
           {/* รายการ */}
