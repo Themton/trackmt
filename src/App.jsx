@@ -2372,28 +2372,27 @@ export default function FlashBackend() {
       <div style={{ flex: 1, marginLeft: 200, minHeight: "100vh" }}>
         {/* TOP BAR */}
         {activePage === "parcels" && (
-          <div style={{ background: "#fff", padding: "14px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, position: "sticky", top: 0, zIndex: 50 }}>
-            <div style={{ display: "flex", gap: 8, flex: 1, minWidth: 200 }}>
-              <div style={{ flex: 1, position: "relative" }}>
-                <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: .4 }}>🔍</span>
-                <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="ค้นหา เลขพัสดุ, ชื่อ, เบอร์, Tracking..." style={{ width: "100%", padding: "9px 12px 9px 36px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
-              </div>
-              <button onClick={loadParcels} style={{ padding: "9px 14px", background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>🔄</button>
+          <div style={{ background: "#fff", padding: "14px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, zIndex: 50, flexWrap: "wrap" }}>
+            {/* ซ้าย: ค้นหา */}
+            <div style={{ position: "relative", minWidth: 180, flex: 1 }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, opacity: .4 }}>🔍</span>
+              <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="ค้นหา..." style={{ width: "100%", padding: "9px 12px 9px 36px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {shops?.length > 0 && <select value={selectedShopFilter} onChange={e => { setSelectedShopFilter(e.target.value); setPage(0); }} style={{ padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontFamily: "inherit", fontWeight: 600, color: selectedShopFilter ? "#dc2626" : "#64748b", minWidth: 120 }}>
-                <option value="">🏪 ทุกร้าน</option>
-                {shops.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>}
-              <select value={codFilter} onChange={e => { setCodFilter(e.target.value); setPage(0); }} style={{ padding: "9px 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, fontFamily: "inherit", fontWeight: 600, color: codFilter ? "#d97706" : "#64748b", minWidth: 100 }}>
-                <option value="">💰 ทุกยอด</option>
-                <option value="cod">มี COD</option>
-                <option value="nocod">ไม่มี COD</option>
-                {[...new Set(parcels.filter(p => Number(p.cod_amount) > 0).map(p => Number(p.cod_amount)))].sort((a, b) => a - b).map(v => <option key={v} value={v}>฿{v.toLocaleString()}</option>)}
-              </select>
-              {(() => { const printable = filtered.filter(p => p.flash_pno && p.status !== "cancelled"); return printable.length > 0 && <button onClick={() => setPrintPreview(printable.map(p => ({ ...p })))} style={{ padding: "9px 14px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>🖨️ ปริ้น ({printable.length})</button>; })()}
-              {perm.create && <button onClick={() => { setEditParcel(null); setShowForm(true); }} style={{ padding: "9px 18px", background: "#dc2626", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>＋ สร้างพัสดุ</button>}
-            </div>
+            <button onClick={loadParcels} style={{ padding: "9px 12px", background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>🔄</button>
+            {/* กลาง: กรอง + ปริ้น */}
+            {shops?.length > 0 && <select value={selectedShopFilter} onChange={e => { setSelectedShopFilter(e.target.value); setPage(0); }} style={{ padding: "9px 10px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 12, fontFamily: "inherit", fontWeight: 600, color: selectedShopFilter ? "#dc2626" : "#64748b" }}>
+              <option value="">🏪 ทุกร้าน</option>
+              {shops.filter(s => s.is_active).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>}
+            <select value={codFilter} onChange={e => { setCodFilter(e.target.value); setPage(0); }} style={{ padding: "9px 10px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 12, fontFamily: "inherit", fontWeight: 600, color: codFilter ? "#d97706" : "#64748b" }}>
+              <option value="">💰 ทุกยอด</option>
+              <option value="cod">มี COD</option>
+              <option value="nocod">ไม่มี COD</option>
+              {[...new Set(parcels.filter(p => Number(p.cod_amount) > 0).map(p => Number(p.cod_amount)))].sort((a, b) => a - b).map(v => <option key={v} value={v}>฿{v.toLocaleString()}</option>)}
+            </select>
+            {(() => { const printable = filtered.filter(p => p.flash_pno && p.status !== "cancelled"); return printable.length > 0 && <button onClick={() => setPrintPreview(printable.map(p => ({ ...p })))} style={{ padding: "9px 14px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>🖨️ ปริ้น ({printable.length})</button>; })()}
+            {/* ขวา: สร้างพัสดุ */}
+            {perm.create && <button onClick={() => { setEditParcel(null); setShowForm(true); }} style={{ padding: "9px 18px", background: "#dc2626", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>＋ สร้างพัสดุ</button>}
           </div>
         )}
 
