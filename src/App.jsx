@@ -2485,47 +2485,61 @@ export default function FlashBackend() {
         </div>
       )}
 
-      {/* PRINT PREVIEW — เลือกราคาก่อนปริ้น */}
-      {printPreview && <div style={{ position: "fixed", inset: 0, zIndex: 9500, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setPrintPreview(null)}>
+      {/* PRINT PREVIEW — กรองราคาก่อนปริ้น */}
+      {printPreview && (() => {
+        const allPrices = [...new Set(printPreview.map(p => Number(p.cod_amount || 0)))].sort((a, b) => a - b);
+        return <div style={{ position: "fixed", inset: 0, zIndex: 9500, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setPrintPreview(null)}>
         <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 600, width: "95%", maxHeight: "85vh", overflowY: "auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🖨️ ปริ้นใบปะหน้า — {printPreview.length} ใบ</h3>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>🖨️ ปริ้นใบปะหน้า — {printPreview.filter(p => p._print !== false).length} ใบ</h3>
             <button onClick={() => setPrintPreview(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>✕</button>
           </div>
-          <div style={{ fontSize: 13, color: "#64748b", marginBottom: 12 }}>แก้ไขราคา COD / Note ได้ก่อนปริ้น</div>
-          <div style={{ maxHeight: 400, overflowY: "auto" }}>
+
+          {/* กรองตามราคา */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", marginBottom: 6 }}>กรองตามราคา:</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: true })))} style={{ padding: "5px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, background: printPreview.every(p => p._print !== false) ? "#4f46e5" : "#fff", color: printPreview.every(p => p._print !== false) ? "#fff" : "#475569", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>ทั้งหมด ({printPreview.length})</button>
+              {allPrices.filter(p => p > 0).map(price => {
+                const cnt = printPreview.filter(p => Number(p.cod_amount || 0) === price).length;
+                const active = printPreview.filter(p => p._print !== false && Number(p.cod_amount || 0) === price).length === cnt && printPreview.filter(p => p._print !== false).length === cnt;
+                return <button key={price} onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: Number(p.cod_amount || 0) === price })))} style={{ padding: "5px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, background: active ? "#059669" : "#fff", color: active ? "#fff" : "#475569", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>฿{price.toLocaleString()} ({cnt})</button>;
+              })}
+              {printPreview.some(p => !p.cod_amount) && <button onClick={() => setPrintPreview(prev => prev.map(p => ({ ...p, _print: !Number(p.cod_amount) })))} style={{ padding: "5px 12px", border: "1.5px solid #e2e8f0", borderRadius: 8, background: "#fff", color: "#475569", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>ไม่มี COD ({printPreview.filter(p => !Number(p.cod_amount)).length})</button>}
+            </div>
+          </div>
+
+          {/* รายการ */}
+          <div style={{ maxHeight: 350, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 10 }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead><tr style={{ background: "#f8fafc" }}>
-                {["ลูกค้า", "เบอร์", "COD", "Note/หมายเหตุ"].map((h, i) => <th key={i} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, borderBottom: "1px solid #e2e8f0" }}>{h}</th>)}
+              <thead><tr style={{ background: "#f8fafc", position: "sticky", top: 0 }}>
+                {["✓", "ลูกค้า", "เบอร์", "COD", "Note"].map((h, i) => <th key={i} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, borderBottom: "1px solid #e2e8f0" }}>{h}</th>)}
               </tr></thead>
               <tbody>{printPreview.map((p, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                  <td style={{ padding: "8px 10px", fontWeight: 600 }}>{p.receiver_name}</td>
-                  <td style={{ padding: "8px 10px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
-                  <td style={{ padding: "8px 10px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <input type="checkbox" checked={p.cod_enabled || false} onChange={e => setPrintPreview(prev => prev.map((x, idx) => idx === i ? { ...x, cod_enabled: e.target.checked } : x))} />
-                      <input type="number" value={p.cod_amount || ""} onChange={e => setPrintPreview(prev => prev.map((x, idx) => idx === i ? { ...x, cod_amount: parseFloat(e.target.value) || 0, cod_enabled: parseFloat(e.target.value) > 0 } : x))} placeholder="0" style={{ width: 80, padding: "5px 8px", border: "1.5px solid #e2e8f0", borderRadius: 6, fontSize: 13, fontWeight: 700, fontFamily: "inherit", textAlign: "right" }} />
-                    </div>
-                  </td>
-                  <td style={{ padding: "8px 10px" }}>
-                    <input value={p.remark || ""} onChange={e => setPrintPreview(prev => prev.map((x, idx) => idx === i ? { ...x, remark: e.target.value } : x))} placeholder="หมายเหตุ" style={{ width: "100%", padding: "5px 8px", border: "1.5px solid #e2e8f0", borderRadius: 6, fontSize: 12, fontFamily: "inherit" }} />
-                  </td>
+                <tr key={i} style={{ borderBottom: "1px solid #f1f5f9", opacity: p._print === false ? 0.35 : 1 }}>
+                  <td style={{ padding: "6px 10px" }}><input type="checkbox" checked={p._print !== false} onChange={() => setPrintPreview(prev => prev.map((x, idx) => idx === i ? { ...x, _print: x._print === false ? true : false } : x))} /></td>
+                  <td style={{ padding: "6px 10px", fontWeight: 600 }}>{p.receiver_name}</td>
+                  <td style={{ padding: "6px 10px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
+                  <td style={{ padding: "6px 10px", fontWeight: 700, color: p.cod_enabled ? "#d97706" : "#cbd5e1" }}>{p.cod_enabled ? `฿${Number(p.cod_amount || 0).toLocaleString()}` : "—"}</td>
+                  <td style={{ padding: "6px 10px", fontSize: 11, color: "#64748b", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.remark || "—"}</td>
                 </tr>
               ))}</tbody>
             </table>
           </div>
+
           <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
             <button onClick={async () => {
-              openPrintPage(printPreview);
-              for (const p of printPreview) { markPrinted(p); }
+              const toPrint = printPreview.filter(p => p._print !== false);
+              if (!toPrint.length) { alert("เลือกอย่างน้อย 1 รายการ"); return; }
+              openPrintPage(toPrint);
+              for (const p of toPrint) { markPrinted(p); }
               setSelectedIds(new Set());
               setPrintPreview(null);
-            }} style={{ flex: 1, padding: 14, background: "#dc2626", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>🖨️ ปริ้น {printPreview.length} ใบ</button>
+            }} style={{ flex: 1, padding: 14, background: "#dc2626", color: "#fff", border: "none", borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>🖨️ ปริ้น {printPreview.filter(p => p._print !== false).length} ใบ</button>
             <button onClick={() => setPrintPreview(null)} style={{ padding: "14px 24px", background: "#f1f5f9", border: "none", borderRadius: 12, fontWeight: 600, cursor: "pointer" }}>ยกเลิก</button>
           </div>
         </div>
-      </div>}
+      </div>; })()}
 
       {/* DETAIL MODAL */}
       {viewParcel && <div style={{ position: "fixed", inset: 0, zIndex: 8000, background: "rgba(0,0,0,.55)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setViewParcel(null)}><div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 28, maxWidth: 520, width: "95%", maxHeight: "85vh", overflowY: "auto" }}>
