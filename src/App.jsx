@@ -1066,7 +1066,6 @@ export default function FlashBackend() {
       if (i + 20 < toCheck.length) await new Promise(r => setTimeout(r, 500));
     }
     setFlashRefreshing(false);
-    showToast(`อัพเดตสถานะ Flash ${updated} รายการ`);
   };
 
   // ═══ REALTIME — broadcast timestamp polling (เหมือน crmtel) ═══
@@ -2440,7 +2439,6 @@ export default function FlashBackend() {
               <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="ค้นหา..." style={{ width: "100%", padding: "9px 12px 9px 36px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 13, outline: "none", fontFamily: "inherit" }} />
             </div>
             <button onClick={loadParcels} style={{ padding: "9px 12px", background: "#f8fafc", border: "1.5px solid #e2e8f0", borderRadius: 10, cursor: "pointer", fontSize: 13 }}>🔄</button>
-            <button onClick={refreshFlashStatus} disabled={flashRefreshing} style={{ padding: "9px 12px", background: flashRefreshing ? "#fef3c7" : "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: 10, cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#ea580c", whiteSpace: "nowrap" }}>{flashRefreshing ? "⏳ กำลังอัพเดต..." : "🚚 อัพเดตสถานะ Flash"}</button>
             {/* กลาง: กรอง + ปริ้น */}
             {shops?.length > 0 && <select value={selectedShopFilter} onChange={e => { setSelectedShopFilter(e.target.value); setPage(0); }} style={{ padding: "9px 10px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 12, fontFamily: "inherit", fontWeight: 600, color: selectedShopFilter ? "#dc2626" : "#64748b" }}>
               <option value="">🏪 ทุกร้าน</option>
