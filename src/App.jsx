@@ -1680,6 +1680,19 @@ export default function FlashBackend() {
             </select>
           )}
           <button onClick={loadParcels} style={{ padding: "10px 16px", background: "#f3f4f6", border: "1px solid #e5e7eb", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>🔄 รีเฟรช</button>
+          <button onClick={() => {
+            const data = filtered;
+            if (!data.length) { alert("ไม่มีข้อมูลที่จะ Export"); return; }
+            const bom = "\uFEFF";
+            const headers = ["ลำดับ","วันที่","ลูกค้า","เบอร์โทร","เลข Tracking","Sort Code","สถานะ Flash","รายละเอียดล่าสุด","อัพเดตล่าสุด","สถานะระบบ","COD","ยอด COD","ร้านค้า","ที่อยู่","ตำบล","อำเภอ","จังหวัด","รหัสไปรษณีย์","หมายเหตุ"];
+            const rows = data.map((p, i) => {
+              const shop = shops?.find(s => s.id === p.shop_id);
+              return [i+1, new Date(p.created_at).toLocaleString("th-TH"), p.receiver_name, p.receiver_phone, p.flash_pno, p.flash_sort_code||"", p.flash_status||"สร้างรายการ", p.flash_detail||"", p.flash_updated_at ? new Date(p.flash_updated_at).toLocaleString("th-TH") : "", p.status, p.cod_enabled?"ใช่":"ไม่", p.cod_amount||0, shop?.name||"", p.receiver_address, p.receiver_subdistrict, p.receiver_district, p.receiver_province, p.receiver_postal, p.remark||""];
+            });
+            const csv = bom + [headers, ...rows].map(r => r.map(v => `"${String(v||"").replace(/"/g,'""')}"`).join(",")).join("\n");
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+            const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `flash-status-${rptFilter === "ALL" ? "ทั้งหมด" : rptFilter}-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+          }} style={{ padding: "10px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>📤 Export ({filtered.length})</button>
         </div>
 
         {/* Table */}
