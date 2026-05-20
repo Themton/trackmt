@@ -1015,6 +1015,7 @@ export default function FlashBackend() {
   const setActivePage = (p) => { setActivePageRaw(p); try { sessionStorage.setItem("fx_page", p); } catch {} };
   const [selectedShopFilter, setSelectedShopFilter] = useState("");
   const [codFilter, setCodFilter] = useState("");
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
   const PER_PAGE = 100;
   const isDemo = SUPABASE_URL.includes("YOUR_PROJECT");
   const perm = user ? (CAN[user.role] || {}) : {};
@@ -2626,6 +2627,46 @@ export default function FlashBackend() {
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${perm.viewCOD ? 6 : 5}, 1fr)`, gap: 12, padding: "12px 24px" }}>
               {[{ l: "ทั้งหมด", v: stats.total, c: "#6366f1", i: "📋" }, { l: "เตรียมส่ง", v: stats.draft, c: "#f59e0b", i: "📝" }, { l: "สร้างเลขแล้ว", v: stats.created, c: "#059669", i: "✅" }, { l: "ปริ้นแล้ว", v: stats.printed, c: "#6366f1", i: "🖨️" }, { l: "ยกเลิก", v: stats.cancelled, c: "#dc2626", i: "❌" }, ...(perm.viewCOD ? [{ l: "COD รวม", v: `฿${stats.codTotal.toLocaleString()}`, c: "#7c3aed", i: "💰" }] : [])].map((s, i) => <div key={i} style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", border: "1px solid #e2e8f0" }}><div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>{s.i} {s.l}</div><div style={{ fontSize: 22, fontWeight: 800, color: s.c }}>{s.v}</div></div>)}
             </div>
+
+            {/* 🔔 แจ้งเตือน: พัสดุยังไม่เข้าระบบ Flash */}
+            {notInFlash.length > 0 && (
+              <div style={{ margin: "0 24px 12px", background: "linear-gradient(135deg,#fef2f2,#fff7ed)", border: "1.5px solid #fca5a5", borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setShowNotifPanel(v => !v)}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 20, animation: "pulse 2s infinite" }}>🔔</span>
+                    <div>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: "#dc2626" }}>พัสดุยังไม่เข้าระบบ Flash: {notInFlash.length} รายการ</span>
+                      <span style={{ fontSize: 12, color: "#92400e", marginLeft: 8 }}>มีเลข Tracking แล้วแต่ Flash ยังไม่ได้ยิงรับ</span>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 14, color: "#dc2626", fontWeight: 800, transition: "transform .2s", transform: showNotifPanel ? "rotate(180deg)" : "" }}>▼</span>
+                </div>
+                {showNotifPanel && (
+                  <div style={{ borderTop: "1px solid #fca5a5", maxHeight: 300, overflowY: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead><tr style={{ background: "#fde6e6", position: "sticky", top: 0 }}>
+                        {["#","ชื่อผู้รับ","เบอร์","Tracking","ร้านค้า","สร้างเมื่อ","ค้างมา"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 700, fontSize: 11 }}>{h}</th>)}
+                      </tr></thead>
+                      <tbody>{notInFlash.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((p, i) => {
+                        const days = Math.floor((Date.now() - new Date(p.created_at)) / 86400000);
+                        const shop = shops?.find(s => s.id === p.shop_id);
+                        return (
+                          <tr key={p.id} style={{ borderBottom: "1px solid #fee2e2", background: days >= 3 ? "#fff1f1" : i % 2 ? "#fffbfa" : "#fff", cursor: "pointer" }} onClick={() => setViewParcel(p)}>
+                            <td style={{ padding: "6px 10px", color: "#9ca3af" }}>{i + 1}</td>
+                            <td style={{ padding: "6px 10px", fontWeight: 600 }}>{p.receiver_name}</td>
+                            <td style={{ padding: "6px 10px" }}>{p.receiver_phone}</td>
+                            <td style={{ padding: "6px 10px", fontFamily: "monospace", fontSize: 11, color: "#4f46e5" }}>{p.flash_pno}</td>
+                            <td style={{ padding: "6px 10px" }}>{shop?.name || "—"}</td>
+                            <td style={{ padding: "6px 10px" }}>{new Date(p.created_at).toLocaleDateString("th-TH")}</td>
+                            <td style={{ padding: "6px 10px" }}>{days >= 3 ? <span style={{ background: "#dc2626", color: "#fff", padding: "1px 6px", borderRadius: 4, fontWeight: 700, fontSize: 10 }}>{days} วัน ⚠️</span> : days >= 1 ? <span style={{ background: "#f59e0b", color: "#fff", padding: "1px 6px", borderRadius: 4, fontWeight: 700, fontSize: 10 }}>{days} วัน</span> : <span style={{ color: "#9ca3af", fontSize: 10 }}>วันนี้</span>}</td>
+                          </tr>
+                        );
+                      })}</tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* TABLE */}
             <div style={{ padding: "0 24px 24px" }}>
