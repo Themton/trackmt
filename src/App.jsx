@@ -23,14 +23,24 @@ const flashApi = {
     return FLASH_ACCOUNTS.find(a => a.mchId === mchId) || FLASH_ACCOUNTS[0];
   },
   async callWorker(endpoint, body) {
-    const res = await fetch(`${WORKER_URL}/flash-api/${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const text = await res.text();
-    if (!res.ok) throw new Error(`Worker HTTP ${res.status}: ${text.substring(0, 200)}`);
-    try { return JSON.parse(text); } catch { throw new Error(`Worker ตอบกลับไม่ใช่ JSON: ${text.substring(0, 200)}`); }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000); // 15 วินาที timeout
+    try {
+      const res = await fetch(`${WORKER_URL}/flash-api/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      const text = await res.text();
+      if (!res.ok) throw new Error(`Worker HTTP ${res.status}: ${text.substring(0, 200)}`);
+      try { return JSON.parse(text); } catch { throw new Error(`Worker ตอบกลับไม่ใช่ JSON: ${text.substring(0, 200)}`); }
+    } catch (e) {
+      clearTimeout(timeout);
+      if (e.name === "AbortError") throw new Error("Worker timeout (15s) — ลองอีกครั้ง");
+      throw e;
+    }
   },
   async ping(account) {
     return this.callWorker("ping", { mchId: account?.mchId || "CBC9351" });
@@ -1103,34 +1113,41 @@ export default function FlashBackend() {
   const parcelsRef = useRef(parcels);
   parcelsRef.current = parcels;
   const lastAutoSync = useRef(0);
+  const autoSyncing = useRef(false);
   useEffect(() => {
     if (!user || isDemo || !parcels.length) return;
     const doAutoSync = async () => {
+      if (autoSyncing.current) return;
       if (Date.now() - lastAutoSync.current < 30000) return;
       lastAutoSync.current = Date.now();
+      autoSyncing.current = true;
       const current = parcelsRef.current;
       const toCheck = current.filter(p => p.flash_pno && p.status !== "cancelled" && p.flash_status !== "เซ็นรับแล้ว" && p.flash_status !== "คืนสำเร็จ");
-      if (!toCheck.length) return;
-      setFlashRefreshing(true);
-      for (let i = 0; i < toCheck.length; i += 20) {
-        const batch = toCheck.slice(i, i + 20);
-        try {
-          const acc = getFlashAccount(batch[0]);
-          const result = await flashApi.getTracking(batch.map(p => p.flash_pno), acc);
-          if (result.code === 1 && result.data) {
-            for (const item of result.data) {
-              const parcel = batch.find(p => p.flash_pno === item.pno);
-              if (!parcel) continue;
-              const lastRoute = item.routes?.[0];
-              const updates = { flash_state: item.state, flash_status: item.stateText || "", flash_detail: lastRoute?.message || "", flash_updated_at: new Date((item.stateChangeAt || 0) * 1000).toISOString() };
-              setParcels(prev => prev.map(x => x.id === parcel.id ? { ...x, ...updates } : x));
-              try { await sb.update("fx_parcels", parcel.id, updates); } catch {}
-            }
+      if (!toCheck.length) { autoSyncing.current = false; return; }
+      try {
+        // แยกตาม account
+        const byAcc = {};
+        for (const p of toCheck) { const a = getFlashAccount(p); const k = a.mchId; if (!byAcc[k]) byAcc[k] = { acc: a, parcels: [] }; byAcc[k].parcels.push(p); }
+        for (const group of Object.values(byAcc)) {
+          for (let i = 0; i < group.parcels.length; i += 20) {
+            const batch = group.parcels.slice(i, i + 20);
+            try {
+              const result = await flashApi.getTracking(batch.map(p => p.flash_pno), group.acc);
+              if (result.code === 1 && result.data) {
+                for (const item of result.data) {
+                  const parcel = batch.find(p => p.flash_pno === item.pno);
+                  if (!parcel) continue;
+                  const lastRoute = item.routes?.[0];
+                  const updates = { flash_state: item.state, flash_status: item.stateText || "", flash_detail: lastRoute?.message || "", flash_updated_at: new Date((item.stateChangeAt || 0) * 1000).toISOString() };
+                  setParcels(prev => prev.map(x => x.id === parcel.id ? { ...x, ...updates } : x));
+                  try { await sb.update("fx_parcels", parcel.id, updates); } catch {}
+                }
+              }
+            } catch {}
+            if (i + 20 < group.parcels.length) await new Promise(r => setTimeout(r, 500));
           }
-        } catch {}
-        if (i + 20 < toCheck.length) await new Promise(r => setTimeout(r, 500));
-      }
-      setFlashRefreshing(false);
+        }
+      } finally { autoSyncing.current = false; }
     };
     const initTimer = setTimeout(doAutoSync, 2000);
     const interval = setInterval(doAutoSync, 5 * 60 * 1000);
