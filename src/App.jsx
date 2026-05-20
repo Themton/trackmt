@@ -807,11 +807,21 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
 
           {/* เลือกไฟล์ */}
           {rows.length === 0 && (
-            <div onClick={() => fileRef.current?.click()} style={{ border: "2px dashed #d1d5db", borderRadius: 16, padding: 40, textAlign: "center", cursor: "pointer", background: "#fafafa" }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#475569" }}>คลิกเพื่อเลือกไฟล์ Excel</div>
-              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>รองรับ .xlsx, .xls (รูปแบบ Flash Express)</div>
-              <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} style={{ display: "none" }} />
+            <div>
+              <div onClick={() => fileRef.current?.click()} style={{ border: "2px dashed #d1d5db", borderRadius: 16, padding: 40, textAlign: "center", cursor: "pointer", background: "#fafafa" }}>
+                <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#475569" }}>คลิกเพื่อเลือกไฟล์ Excel</div>
+                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>รองรับ .xlsx, .xls (รูปแบบ Flash Express)</div>
+                <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} style={{ display: "none" }} />
+              </div>
+              <button onClick={() => {
+                const bom = "\uFEFF";
+                const headers = ["Mobile","Name","Address","Sub District","District","Zipcode","FB/LINE","Product","Sale","Sale Price","COD","Remark"];
+                const sample = ["0812345678","สมชาย ใจดี","123/4 หมู่ 5","ในเมือง","เมืองพิษณุโลก","65000","fb:somchai","ครีมหน้าขาว","แอดมิน","390","390","ครีม 1 เซรั่ม 1"];
+                const csv = bom + [headers.join(","), sample.join(",")].join("\n");
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+                const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "import-template.csv"; a.click();
+              }} style={{ marginTop: 12, padding: "10px 20px", background: "#fff", color: "#4f46e5", border: "2px solid #4f46e5", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>📄 ดาวน์โหลดไฟล์ตัวอย่าง</button>
             </div>
           )}
 
@@ -2134,6 +2144,14 @@ export default function FlashBackend() {
             <label style={{ padding: "10px 20px", background: "#f59e0b", color: "#fff", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>📥 Import Excel
               <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); e.target.value = ""; }} />
             </label>
+            <button onClick={() => {
+              const bom = "\uFEFF";
+              const headers = ["Mobile","Name","Address","Sub District","District","Zipcode","FB/LINE","Product","Sale","Sale Price","COD","Remark"];
+              const sample = ["0812345678","สมชาย ใจดี","123/4 หมู่ 5","ในเมือง","เมืองพิษณุโลก","65000","fb:somchai","ครีมหน้าขาว","แอดมิน","390","390","ครีม 1 เซรั่ม 1"];
+              const csv = bom + [headers.join(","), sample.join(",")].join("\n");
+              const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+              const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "upsell-template.csv"; a.click();
+            }} style={{ padding: "10px 20px", background: "#fff", color: "#f59e0b", border: "2px solid #f59e0b", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>📄 ดาวน์โหลดตัวอย่าง</button>
             {upsellRows.length > 0 && <span style={{ fontSize: 13, color: "#64748b" }}>พบ {upsellRows.length} รายการ</span>}
             {upsellRows.length > 0 && <button onClick={handleImport} disabled={upsellImporting} style={{ padding: "10px 20px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}>{upsellImporting ? `กำลังนำเข้า ${upsellProgress}%` : `✅ นำเข้า ${upsellRows.filter(r => r._selected).length} รายการ`}</button>}
           </div>
