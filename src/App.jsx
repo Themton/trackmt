@@ -1099,6 +1099,44 @@ export default function FlashBackend() {
     return () => clearInterval(poll);
   }, [user, isDemo, loadParcels, loadShops]);
 
+  // ═══ AUTO-SYNC FLASH STATUS — ทุก 5 นาที + ตอนโหลดหน้า ═══
+  const lastAutoSync = useRef(0);
+  useEffect(() => {
+    if (!user || isDemo || !parcels.length) return;
+    const doAutoSync = async () => {
+      if (flashRefreshing) return;
+      if (Date.now() - lastAutoSync.current < 60000) return; // ไม่ sync ถี่กว่า 1 นาที
+      lastAutoSync.current = Date.now();
+      const toCheck = parcels.filter(p => p.flash_pno && p.status !== "cancelled" && p.flash_status !== "เซ็นรับแล้ว" && p.flash_status !== "คืนสำเร็จ");
+      if (!toCheck.length) return;
+      setFlashRefreshing(true);
+      for (let i = 0; i < toCheck.length; i += 20) {
+        const batch = toCheck.slice(i, i + 20);
+        try {
+          const acc = getFlashAccount(batch[0]);
+          const result = await flashApi.getTracking(batch.map(p => p.flash_pno), acc);
+          if (result.code === 1 && result.data) {
+            for (const item of result.data) {
+              const parcel = batch.find(p => p.flash_pno === item.pno);
+              if (!parcel) continue;
+              const lastRoute = item.routes?.[0];
+              const updates = { flash_state: item.state, flash_status: item.stateText || "", flash_detail: lastRoute?.message || "", flash_updated_at: new Date((item.stateChangeAt || 0) * 1000).toISOString() };
+              setParcels(prev => prev.map(x => x.id === parcel.id ? { ...x, ...updates } : x));
+              try { await sb.update("fx_parcels", parcel.id, updates); } catch {}
+            }
+          }
+        } catch {}
+        if (i + 20 < toCheck.length) await new Promise(r => setTimeout(r, 500));
+      }
+      setFlashRefreshing(false);
+    };
+    // Sync ตอนโหลดหน้า (delay 3 วิ)
+    const initTimer = setTimeout(doAutoSync, 3000);
+    // Sync ทุก 5 นาที
+    const interval = setInterval(doAutoSync, 5 * 60 * 1000);
+    return () => { clearTimeout(initTimer); clearInterval(interval); };
+  }, [user, isDemo, parcels.length]);
+
   const STATUS_TABS = [
     { key: "ALL", label: "ทั้งหมด", icon: "📋", color: "#475569" },
     { key: "draft", label: "เตรียมส่ง", icon: "📝", color: "#f59e0b" },
@@ -2638,6 +2676,8 @@ export default function FlashBackend() {
                     <div>
                       <span style={{ fontSize: 14, fontWeight: 800, color: "#dc2626" }}>พัสดุยังไม่เข้าระบบ Flash: {notInFlash.length} รายการ</span>
                       <span style={{ fontSize: 12, color: "#92400e", marginLeft: 8 }}>มีเลข Tracking แล้วแต่ Flash ยังไม่ได้ยิงรับ</span>
+                      {flashRefreshing && <span style={{ fontSize: 11, color: "#6366f1", marginLeft: 8, fontWeight: 600 }}>⟳ กำลัง sync สถานะ...</span>}
+                      {!flashRefreshing && <span style={{ fontSize: 10, color: "#9ca3af", marginLeft: 8 }}>อัพเดตอัตโนมัติทุก 5 นาที</span>}
                     </div>
                   </div>
                   <span style={{ fontSize: 14, color: "#dc2626", fontWeight: 800, transition: "transform .2s", transform: showNotifPanel ? "rotate(180deg)" : "" }}>▼</span>
@@ -2656,6 +2696,7 @@ export default function FlashBackend() {
                         <button onClick={() => setNotifSelected(new Set())} style={{ padding: "5px 10px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 11, cursor: "pointer" }}>✕ ยกเลิก</button>
                       </>}
                       <button onClick={() => { setPrintPreview(notInFlash.map(p => ({ ...p }))); }} style={{ marginLeft: "auto", padding: "5px 14px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🖨️ ปริ้นทั้งหมด ({notInFlash.length})</button>
+                      <button onClick={(e) => { e.stopPropagation(); refreshFlashStatus(); }} disabled={flashRefreshing} style={{ padding: "5px 14px", background: flashRefreshing ? "#94a3b8" : "#4f46e5", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: flashRefreshing ? "wait" : "pointer" }}>{flashRefreshing ? "⟳ กำลัง sync..." : "🔄 Sync สถานะ"}</button>
                     </div>
                     <div style={{ maxHeight: 300, overflowY: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
