@@ -1121,6 +1121,9 @@ export default function FlashBackend() {
   const statsData = useMemo(() => { const list = selectedShopFilter ? parcels.filter(p => p.shop_id === selectedShopFilter) : parcels; return list; }, [parcels, selectedShopFilter]);
   const stats = useMemo(() => ({ total: statsData.length, draft: statsData.filter(p => p.status === "draft").length, created: statsData.filter(p => p.status === "created").length, printed: statsData.filter(p => p.status === "printed").length, cancelled: statsData.filter(p => p.status === "cancelled").length, codTotal: statsData.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [statsData]);
 
+  // แจ้งเตือน: พัสดุที่มีเลข Tracking แต่ Flash ยังไม่รับเข้าระบบ
+  const notInFlash = useMemo(() => parcels.filter(p => p.flash_pno && p.status !== "cancelled" && (!p.flash_status || p.flash_status === "สร้างรายการ")), [parcels]);
+
   const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } mutating.current = true; try { await sb.delete("fx_parcels", p.id); setParcels(prev => prev.filter(x => x.id !== p.id)); showToast("ลบสำเร็จ"); await sb.broadcastChange(); } catch (e) { alert(e.message); } setTimeout(() => { mutating.current = false; }, 1000); };
   const markPrinted = async (p) => {
     mutating.current = true;
@@ -1846,6 +1849,7 @@ export default function FlashBackend() {
 
   // ═══ DASHBOARD PAGE ═══
   const DashboardPage = () => {
+    const [showNotifDetail, setShowNotifDetail] = useState(false);
     const today = new Date().toISOString().slice(0, 10);
     const todayParcels = parcels.filter(p => p.created_at?.slice(0, 10) === today);
     const todayStats = {
@@ -1879,6 +1883,52 @@ export default function FlashBackend() {
           <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#111" }}>📊 Dashboard</h2>
           <p style={{ margin: "4px 0 0", fontSize: 14, color: "#6b7280" }}>สรุปภาพรวมระบบจัดการพัสดุ — {new Date().toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
         </div>
+
+        {/* 🔔 แจ้งเตือน: พัสดุยังไม่เข้าระบบ Flash */}
+        {notInFlash.length > 0 && (
+          <div style={{ marginBottom: 20, background: "linear-gradient(135deg,#fef2f2,#fff7ed)", border: "1.5px solid #fca5a5", borderRadius: 14, padding: "16px 20px", cursor: "pointer" }} onClick={() => setShowNotifDetail(v => !v)}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 24 }}>🔔</span>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: "#dc2626" }}>พัสดุยังไม่เข้าระบบ Flash {notInFlash.length} รายการ</div>
+                  <div style={{ fontSize: 12, color: "#92400e", marginTop: 2 }}>มีเลข Tracking แล้วแต่ Flash ยังไม่ได้รับ (ยังไม่ได้ยิง) — กดเพื่อดูรายละเอียด</div>
+                </div>
+              </div>
+              <span style={{ fontSize: 18, color: "#dc2626", transition: "transform .2s", transform: showNotifDetail ? "rotate(180deg)" : "" }}>▼</span>
+            </div>
+            {showNotifDetail && (
+              <div style={{ marginTop: 14, maxHeight: 320, overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead><tr style={{ background: "#fde6e6" }}>
+                    <th style={{ padding: "8px 10px", textAlign: "left", fontWeight: 700 }}>#</th>
+                    <th style={{ padding: "8px 10px", textAlign: "left", fontWeight: 700 }}>ชื่อผู้รับ</th>
+                    <th style={{ padding: "8px 10px", textAlign: "left", fontWeight: 700 }}>เบอร์</th>
+                    <th style={{ padding: "8px 10px", textAlign: "left", fontWeight: 700 }}>Tracking</th>
+                    <th style={{ padding: "8px 10px", textAlign: "left", fontWeight: 700 }}>ร้านค้า</th>
+                    <th style={{ padding: "8px 10px", textAlign: "left", fontWeight: 700 }}>สร้างเมื่อ</th>
+                    <th style={{ padding: "8px 10px", textAlign: "left", fontWeight: 700 }}>ค้างมา</th>
+                  </tr></thead>
+                  <tbody>{notInFlash.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((p, i) => {
+                    const days = Math.floor((Date.now() - new Date(p.created_at)) / 86400000);
+                    const shop = shops?.find(s => s.id === p.shop_id);
+                    return (
+                      <tr key={p.id} style={{ borderBottom: "1px solid #fde6e6", background: days >= 3 ? "#fff1f1" : i % 2 ? "#fffbfa" : "#fff" }} onClick={() => setViewParcel(p)}>
+                        <td style={{ padding: "7px 10px", color: "#9ca3af" }}>{i + 1}</td>
+                        <td style={{ padding: "7px 10px", fontWeight: 600 }}>{p.receiver_name}</td>
+                        <td style={{ padding: "7px 10px" }}>{p.receiver_phone}</td>
+                        <td style={{ padding: "7px 10px", fontFamily: "monospace", fontSize: 11, color: "#4f46e5" }}>{p.flash_pno}</td>
+                        <td style={{ padding: "7px 10px" }}>{shop?.name || "—"}</td>
+                        <td style={{ padding: "7px 10px" }}>{new Date(p.created_at).toLocaleDateString("th-TH")}</td>
+                        <td style={{ padding: "7px 10px" }}>{days >= 3 ? <span style={{ background: "#dc2626", color: "#fff", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>{days} วัน ⚠️</span> : days >= 1 ? <span style={{ background: "#f59e0b", color: "#fff", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>{days} วัน</span> : <span style={{ color: "#9ca3af" }}>วันนี้</span>}</td>
+                      </tr>
+                    );
+                  })}</tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ROW 1 — Today Summary */}
         <div style={{ marginBottom: 12, fontSize: 15, fontWeight: 700, color: "#374151" }}>📅 วันนี้</div>
@@ -2514,15 +2564,17 @@ export default function FlashBackend() {
 
         {/* Menu */}
         <div style={{ flex: 1, padding: "12px 8px" }}>
-          {MENU.map(m => (
+          {MENU.map(m => {
+            const badge = m.key === "parcels" ? notInFlash.length : 0;
+            return (
             <button key={m.key} onClick={() => setActivePage(m.key)} style={{
               width: "100%", padding: "11px 14px", border: "none", borderRadius: 10, marginBottom: 4,
               background: activePage === m.key ? "rgba(239,68,68,.15)" : "transparent",
               color: activePage === m.key ? "#f87171" : "rgba(255,255,255,.6)",
               fontSize: 13, fontWeight: activePage === m.key ? 700 : 500, cursor: "pointer",
               display: "flex", alignItems: "center", gap: 10, textAlign: "left", fontFamily: "inherit",
-            }}>{m.icon} {m.label}</button>
-          ))}
+            }}>{m.icon} {m.label}{badge > 0 && <span style={{ marginLeft: "auto", background: "#ef4444", color: "#fff", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 10, lineHeight: "16px", minWidth: 18, textAlign: "center" }}>{badge}</span>}</button>
+          );})}
         </div>
 
         {/* User */}
