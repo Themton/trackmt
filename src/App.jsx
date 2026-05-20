@@ -2014,6 +2014,7 @@ export default function FlashBackend() {
     const [upsellImporting, setUpsellImporting] = useState(false);
     const [upsellProgress, setUpsellProgress] = useState(0);
     const [upsellSelected, setUpsellSelected] = useState(new Set());
+    const [upsellShop, setUpsellShop] = useState("");
 
     const loadUpsell = async () => { setUpsellLoading(true); try { const d = await sb.select("fx_upsell", { order: "created_at.desc" }); setUpsellData(d || []); } catch {} setUpsellLoading(false); };
     useEffect(() => { loadUpsell(); }, []);
@@ -2119,9 +2120,10 @@ export default function FlashBackend() {
       } catch (e) { alert(e.message); }
     };
 
-    const createParcelFromUpsell = async (item) => {
+    const createParcelFromUpsell = async (item, shopOverride) => {
       try {
-        const shop = shops?.find(s => s.is_default) || shops?.[0];
+        const shop = shopOverride || (upsellShop ? shops?.find(s => s.id === upsellShop) : null) || shops?.find(s => s.is_default) || shops?.[0];
+        if (!shop) { alert("กรุณาเลือกร้านค้าก่อน"); return false; }
         const parcelData = {
           parcel_no: "P" + Date.now().toString(36).toUpperCase(),
           status: "draft",
@@ -2145,13 +2147,16 @@ export default function FlashBackend() {
         await sb.update("fx_upsell", item.id, { parcel_created: true });
         setUpsellData(prev => prev.map(x => x.id === item.id ? { ...x, parcel_created: true } : x));
         showToast(`สร้างพัสดุ ${item.receiver_name} สำเร็จ → ไปหน้าจัดส่ง`);
-      } catch (e) { alert("สร้างพัสดุไม่ได้: " + e.message); }
+        return true;
+      } catch (e) { alert("สร้างพัสดุไม่ได้: " + e.message); return false; }
     };
 
     const batchCreateParcels = async () => {
+      if (!upsellShop && shops?.length > 1) { alert("กรุณาเลือกร้านค้าก่อนสร้างพัสดุ"); return; }
       const targets = upsellData.filter(p => p.status === "pending" && !p.parcel_created);
       if (!targets.length) { alert("ไม่มีรายการที่ต้องสร้างพัสดุ"); return; }
-      if (!confirm(`สร้างพัสดุ ${targets.length} รายการ?\n\nจะย้ายไปหน้าจัดส่ง`)) return;
+      const shop = upsellShop ? shops?.find(s => s.id === upsellShop) : shops?.find(s => s.is_default) || shops?.[0];
+      if (!confirm(`สร้างพัสดุ ${targets.length} รายการ?\nร้านค้า: ${shop?.name || "ค่าเริ่มต้น"}`)) return;
       let success = 0;
       for (const item of targets) {
         try { await createParcelFromUpsell(item); success++; } catch {}
@@ -2223,9 +2228,13 @@ export default function FlashBackend() {
         <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #e2e8f0", marginBottom: 16 }}>
           {TABS.map(t => { const base = upsellData.filter(p => !p.parcel_created); const cnt = t.key === "ALL" ? base.length : base.filter(p => p.status === t.key).length; const active = upsellFilter === t.key; return <button key={t.key} onClick={() => setUpsellFilter(t.key)} style={{ padding: "12px 18px", border: "none", borderBottom: active ? `3px solid ${t.color}` : "3px solid transparent", background: "transparent", color: active ? t.color : "#64748b", fontSize: 13, fontWeight: active ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }}>{t.icon} {t.label}{cnt > 0 && <span style={{ background: active ? t.color : "#e2e8f0", color: active ? "#fff" : "#64748b", padding: "1px 7px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{cnt}</span>}</button>; })}
         </div>
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-          <input value={upsellSearch} onChange={e => setUpsellSearch(e.target.value)} placeholder="🔍 ค้นหา ชื่อ, เบอร์..." style={{ ...I, flex: 1 }} />
+        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+          <input value={upsellSearch} onChange={e => setUpsellSearch(e.target.value)} placeholder="🔍 ค้นหา ชื่อ, เบอร์..." style={{ ...I, flex: 1, minWidth: 150 }} />
           <button onClick={loadUpsell} style={{ ...I, cursor: "pointer" }}>🔄</button>
+          <select value={upsellShop} onChange={e => setUpsellShop(e.target.value)} style={{ ...I, minWidth: 140, fontWeight: 600, color: upsellShop ? "#1e293b" : "#94a3b8", background: upsellShop ? "#fef3c7" : "#fff" }}>
+            <option value="">🏪 เลือกร้านค้า</option>
+            {(shops || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
           <button onClick={exportUpsell} style={{ padding: "9px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>📤 Export ({filtered.length})</button>
           {upsellData.filter(p => p.status !== "success" && !p.parcel_created).length > 0 && <button onClick={batchCreateParcels} style={{ padding: "9px 16px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>📦 สร้างพัสดุ ({upsellData.filter(p => p.status !== "success" && !p.parcel_created).length})</button>}
         </div>
@@ -2238,7 +2247,7 @@ export default function FlashBackend() {
               <span style={{ fontSize: 13, fontWeight: 700, color: "#4f46e5" }}>✓ เลือก {upsellSelected.size} รายการ</span>
               <button onClick={async () => { const targets = upsellData.filter(p => upsellSelected.has(p.id) && p.status === "pending"); if (!targets.length) { alert("ไม่มีรายการรอดำเนินการ"); return; } for (const t of targets) await updateStatus(t, "success"); setUpsellSelected(new Set()); }} style={{ padding: "7px 14px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✅ สำเร็จ ({upsellData.filter(p => upsellSelected.has(p.id) && p.status === "pending").length})</button>
               <button onClick={async () => { const targets = upsellData.filter(p => upsellSelected.has(p.id) && p.status === "pending"); if (!targets.length) { alert("ไม่มีรายการรอดำเนินการ"); return; } for (const t of targets) await updateStatus(t, "cancelled"); setUpsellSelected(new Set()); }} style={{ padding: "7px 14px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>❌ ยกเลิก ({upsellData.filter(p => upsellSelected.has(p.id) && p.status === "pending").length})</button>
-              <button onClick={async () => { const targets = upsellData.filter(p => upsellSelected.has(p.id) && p.status !== "success" && !p.parcel_created); if (!targets.length) { alert("ไม่มีรายการที่สร้างพัสดุได้"); return; } if (!confirm(`สร้างพัสดุ ${targets.length} รายการ?`)) return; for (const t of targets) { try { await createParcelFromUpsell(t); } catch {} } setUpsellSelected(new Set()); showToast(`สร้างพัสดุ ${targets.length} รายการ`); }} style={{ padding: "7px 14px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📦 สร้างพัสดุ ({upsellData.filter(p => upsellSelected.has(p.id) && p.status !== "success" && !p.parcel_created).length})</button>
+              <button onClick={async () => { if (!upsellShop && shops?.length > 1) { alert("กรุณาเลือกร้านค้าก่อนสร้างพัสดุ"); return; } const targets = upsellData.filter(p => upsellSelected.has(p.id) && p.status !== "success" && !p.parcel_created); if (!targets.length) { alert("ไม่มีรายการที่สร้างพัสดุได้"); return; } const shop = upsellShop ? shops?.find(s => s.id === upsellShop) : shops?.find(s => s.is_default) || shops?.[0]; if (!confirm(`สร้างพัสดุ ${targets.length} รายการ?\nร้านค้า: ${shop?.name || "ค่าเริ่มต้น"}`)) return; for (const t of targets) { try { await createParcelFromUpsell(t); } catch {} } setUpsellSelected(new Set()); showToast(`สร้างพัสดุ ${targets.length} รายการ`); }} style={{ padding: "7px 14px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📦 สร้างพัสดุ ({upsellData.filter(p => upsellSelected.has(p.id) && p.status !== "success" && !p.parcel_created).length})</button>
               <button onClick={() => setUpsellSelected(new Set())} style={{ padding: "7px 12px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
             </div>
           )}
