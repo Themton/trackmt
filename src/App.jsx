@@ -2118,6 +2118,47 @@ export default function FlashBackend() {
       } catch (e) { alert(e.message); }
     };
 
+    const createParcelFromUpsell = async (item) => {
+      try {
+        const shop = shops?.find(s => s.is_default) || shops?.[0];
+        const parcelData = {
+          parcel_no: "P" + Date.now().toString(36).toUpperCase(),
+          status: "draft",
+          sender_name: shop?.name || "", sender_phone: shop?.phone || "", sender_address: shop?.address || "",
+          sender_province: shop?.province || "", sender_district: shop?.district || "",
+          sender_subdistrict: shop?.subdistrict || "", sender_postal: shop?.postal || "",
+          receiver_name: item.receiver_name, receiver_phone: item.receiver_phone,
+          receiver_address: item.receiver_address || "-",
+          receiver_subdistrict: item.receiver_subdistrict || "",
+          receiver_district: item.receiver_district || "",
+          receiver_province: item.receiver_province || "",
+          receiver_postal: item.receiver_postal || "",
+          weight: 1, quantity: 1,
+          cod_enabled: Number(item.cod_amount) > 0,
+          cod_amount: item.cod_amount || 0,
+          remark: item.remark || "",
+          created_by: user.id, created_by_name: user.display_name,
+          shop_id: shop?.id || null,
+        };
+        await sb.insert("fx_parcels", parcelData);
+        await sb.update("fx_upsell", item.id, { parcel_created: true });
+        setUpsellData(prev => prev.map(x => x.id === item.id ? { ...x, parcel_created: true } : x));
+        showToast(`สร้างพัสดุ ${item.receiver_name} สำเร็จ → ไปหน้าจัดส่ง`);
+      } catch (e) { alert("สร้างพัสดุไม่ได้: " + e.message); }
+    };
+
+    const batchCreateParcels = async () => {
+      const targets = upsellData.filter(p => p.status === "success" && !p.parcel_created);
+      if (!targets.length) { alert("ไม่มีรายการที่ต้องสร้างพัสดุ"); return; }
+      if (!confirm(`สร้างพัสดุ ${targets.length} รายการ?\n\nจะย้ายไปหน้าจัดส่ง`)) return;
+      let success = 0;
+      for (const item of targets) {
+        try { await createParcelFromUpsell(item); success++; } catch {}
+      }
+      showToast(`สร้างพัสดุสำเร็จ ${success}/${targets.length} รายการ`);
+      loadUpsell();
+    };
+
     const exportUpsell = () => {
       if (!filtered.length) { alert("ไม่มีข้อมูล"); return; }
       const bom = "\uFEFF";
@@ -2185,6 +2226,7 @@ export default function FlashBackend() {
           <input value={upsellSearch} onChange={e => setUpsellSearch(e.target.value)} placeholder="🔍 ค้นหา ชื่อ, เบอร์..." style={{ ...I, flex: 1 }} />
           <button onClick={loadUpsell} style={{ ...I, cursor: "pointer" }}>🔄</button>
           <button onClick={exportUpsell} style={{ padding: "9px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>📤 Export ({filtered.length})</button>
+          {upsellData.filter(p => p.status === "success" && !p.parcel_created).length > 0 && <button onClick={batchCreateParcels} style={{ padding: "9px 16px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>📦 สร้างพัสดุ ({upsellData.filter(p => p.status === "success" && !p.parcel_created).length})</button>}
         </div>
 
         {/* Table */}
@@ -2206,10 +2248,14 @@ export default function FlashBackend() {
                     <td style={{ padding: "9px 12px" }}><span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: p.status === "success" ? "#ecfdf5" : p.status === "cancelled" ? "#fef2f2" : "#fef3c7", color: p.status === "success" ? "#059669" : p.status === "cancelled" ? "#dc2626" : "#f59e0b" }}>{p.status === "success" ? "✅ สำเร็จ" : p.status === "cancelled" ? "❌ ยกเลิก" : "⏳ รอ"}</span></td>
                     <td style={{ padding: "9px 12px", fontSize: 11, color: "#64748b" }}>{p.upsell_by || "—"}</td>
                     <td style={{ padding: "9px 12px", fontSize: 11, whiteSpace: "nowrap" }}>{new Date(p.created_at).toLocaleDateString("th-TH", { day: "2-digit", month: "short" })}</td>
-                    <td style={{ padding: "9px 8px" }}>{p.status === "pending" && <div style={{ display: "flex", gap: 3 }}>
+                    <td style={{ padding: "9px 8px" }}>
+                      {p.status === "pending" && <div style={{ display: "flex", gap: 3 }}>
                       <button onClick={() => updateStatus(p, "success")} style={{ padding: "4px 10px", background: "#059669", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✅ สำเร็จ</button>
                       <button onClick={() => updateStatus(p, "cancelled")} style={{ padding: "4px 10px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>❌ ยกเลิก</button>
-                    </div>}</td>
+                    </div>}
+                      {p.status === "success" && !p.parcel_created && <button onClick={() => createParcelFromUpsell(p)} style={{ padding: "4px 10px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>📦 สร้างพัสดุ</button>}
+                      {p.status === "success" && p.parcel_created && <span style={{ fontSize: 11, color: "#059669", fontWeight: 600 }}>✅ สร้างแล้ว</span>}
+                    </td>
                   </tr>
                 ))}</tbody>
               </table>

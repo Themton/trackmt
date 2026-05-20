@@ -28,3 +28,9 @@ CREATE POLICY "fx_upsell_select" ON fx_upsell FOR SELECT USING (true);
 CREATE POLICY "fx_upsell_insert" ON fx_upsell FOR INSERT WITH CHECK (true);
 CREATE POLICY "fx_upsell_update" ON fx_upsell FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "fx_upsell_delete" ON fx_upsell FOR DELETE USING (status IN ('pending', 'cancelled'));
+
+-- เพิ่มคอลัมน์ parcel_created
+DO $$ BEGIN
+  ALTER TABLE fx_upsell ADD COLUMN parcel_created BOOLEAN DEFAULT false;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
