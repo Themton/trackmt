@@ -2247,12 +2247,10 @@ export default function FlashBackend() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead><tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
                   <th style={{ padding: "10px 8px", width: 30 }}><input type="checkbox" checked={filtered.length > 0 && filtered.every(p => upsellSelected.has(p.id))} onChange={() => { const allIds = filtered.map(p => p.id); if (filtered.every(p => upsellSelected.has(p.id))) setUpsellSelected(new Set()); else setUpsellSelected(new Set(allIds)); }} /></th>
-                  {["#","ชื่อ","เบอร์","ที่อยู่","หมายเหตุ/สินค้า","ยอด","สถานะ","โดย","วันที่","จัดการ"].map((h,i) => <th key={i} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>)}
+                  {["#","ชื่อ","เบอร์","ที่อยู่","หมายเหตุ/สินค้า","ยอด","สถานะ","โดย","วันที่"].map((h,i) => <th key={i} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>)}
                 </tr></thead>
                 <tbody>{filtered.map((p, i) => (
                   <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: upsellSelected.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
-                    <td style={{ padding: "9px 8px" }}><input type="checkbox" checked={upsellSelected.has(p.id)} onChange={() => setUpsellSelected(prev => { const n = new Set(prev); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; })} /></td>
-                    <td style={{ padding: "9px 12px", color: "#9ca3af", fontSize: 11 }}>{i + 1}</td>
                     <td style={{ padding: "9px 12px", fontWeight: 600 }}>{p.receiver_name}</td>
                     <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
                     <td style={{ padding: "9px 12px", fontSize: 11, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.receiver_address || "—"}</td>
@@ -2261,16 +2259,6 @@ export default function FlashBackend() {
                     <td style={{ padding: "9px 12px" }}><span style={{ padding: "3px 10px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: p.status === "success" ? "#ecfdf5" : p.status === "cancelled" ? "#fef2f2" : "#fef3c7", color: p.status === "success" ? "#059669" : p.status === "cancelled" ? "#dc2626" : "#f59e0b" }}>{p.status === "success" ? "✅ สำเร็จ" : p.status === "cancelled" ? "❌ ยกเลิก" : "⏳ รอ"}</span></td>
                     <td style={{ padding: "9px 12px", fontSize: 11, color: "#64748b" }}>{p.upsell_by || "—"}</td>
                     <td style={{ padding: "9px 12px", fontSize: 11, whiteSpace: "nowrap" }}>{new Date(p.created_at).toLocaleDateString("th-TH", { day: "2-digit", month: "short" })}</td>
-                    <td style={{ padding: "9px 8px" }}>
-                      {p.status === "pending" && <div style={{ display: "flex", gap: 3 }}>
-                      <button onClick={() => updateStatus(p, "success")} style={{ padding: "4px 10px", background: "#059669", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✅ สำเร็จ</button>
-                      <button onClick={() => updateStatus(p, "cancelled")} style={{ padding: "4px 10px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>❌ ยกเลิก</button>
-                    </div>}
-                      {p.status === "success" && <button onClick={() => updateStatus(p, "pending")} style={{ padding: "4px 10px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>↩️ คืนสถานะ</button>}
-                      {p.status === "cancelled" && <button onClick={() => updateStatus(p, "pending")} style={{ padding: "4px 10px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>↩️ คืนสถานะ</button>}
-                      {p.status !== "success" && !p.parcel_created && <button onClick={() => createParcelFromUpsell(p)} style={{ padding: "4px 10px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>📦 สร้างพัสดุ</button>}
-                      {p.parcel_created && <span style={{ fontSize: 11, color: "#059669", fontWeight: 600 }}>✅ สร้างแล้ว</span>}
-                    </td>
                   </tr>
                 ))}</tbody>
               </table>
