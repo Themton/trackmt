@@ -2028,24 +2028,48 @@ export default function FlashBackend() {
       const ab = await file.arrayBuffer();
       const wb = XLSX.read(ab);
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-      if (raw.length < 2) { alert("ไม่พบข้อมูลในไฟล์"); return; }
-      const headers = raw[0].map(h => String(h).trim().toLowerCase());
-      const nameIdx = headers.findIndex(h => /ชื่อ|name|ผู้รับ/.test(h));
-      const phoneIdx = headers.findIndex(h => /เบอร์|phone|โทร/.test(h));
-      const addrIdx = headers.findIndex(h => /ที่อยู่|address/.test(h));
-      const remarkIdx = headers.findIndex(h => /หมายเหตุ|remark|note|สินค้า/.test(h));
-      const codIdx = headers.findIndex(h => /cod|ยอด|เงิน|price/.test(h));
-      if (nameIdx < 0 || phoneIdx < 0) { alert("ไม่พบคอลัมน์ ชื่อ/เบอร์ ในไฟล์"); return; }
-      const rows = raw.slice(1).filter(r => r[nameIdx]).map(r => ({
-        receiver_name: String(r[nameIdx] || "").trim(),
-        receiver_phone: String(r[phoneIdx] || "").trim(),
-        receiver_address: addrIdx >= 0 ? String(r[addrIdx] || "").trim() : "",
-        remark: remarkIdx >= 0 ? String(r[remarkIdx] || "").trim() : "",
-        cod_amount: codIdx >= 0 ? parseFloat(r[codIdx]) || 0 : 0,
-        _selected: true,
-      }));
-      setUpsellRows(rows);
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      if (data.length < 2) { alert("ไม่พบข้อมูลในไฟล์"); return; }
+      let headerIdx = 0;
+      for (let i = 0; i < Math.min(5, data.length); i++) {
+        const row = data[i];
+        const filledCols = row.filter((v, j) => j > 0 && v && String(v).trim()).length;
+        const rowText = row.map(String).join("|").toLowerCase();
+        if (filledCols >= 3 && (rowText.includes("mobile") || rowText.includes("name") || rowText.includes("ชื่อ"))) { headerIdx = i; break; }
+      }
+      const parsed = [];
+      for (let i = headerIdx + 1; i < data.length; i++) {
+        const r = data[i];
+        if (!r || !r[0]) continue;
+        const phone = String(r[0] || "").replace(/[^0-9]/g, "");
+        const name = String(r[1] || "");
+        const address = String(r[2] || "");
+        const subdistrict = String(r[3] || "");
+        const district = String(r[4] || "");
+        const postal = String(r[5] || "").replace(/[^0-9]/g, "");
+        const codAmount = parseFloat(r[10]) || 0;
+        const remark = String(r[11] || "");
+        if (!phone && !name) continue;
+        let province = "";
+        let autoDistrict = district;
+        let autoSubdistrict = subdistrict;
+        if (postal && ADDR_DB[postal]) {
+          const addrList = ADDR_DB[postal];
+          province = addrList[0]?.p || "";
+          if (!autoDistrict && addrList.length === 1) autoDistrict = addrList[0].d;
+          if (!autoSubdistrict && addrList.length === 1) autoSubdistrict = addrList[0].s;
+          if (district) { const match = addrList.find(a => a.d === district); if (match) { province = match.p; if (!autoSubdistrict) autoSubdistrict = match.s; } }
+        }
+        parsed.push({
+          receiver_phone: phone.startsWith("0") ? phone : "0" + phone,
+          receiver_name: name, receiver_address: address,
+          receiver_subdistrict: autoSubdistrict, receiver_district: autoDistrict,
+          receiver_province: province, receiver_postal: postal,
+          cod_enabled: codAmount > 0, cod_amount: codAmount,
+          remark: remark, _selected: true,
+        });
+      }
+      setUpsellRows(parsed);
     };
 
     const handleImport = async () => {
@@ -2058,7 +2082,12 @@ export default function FlashBackend() {
         try {
           await sb.insert("fx_upsell", {
             receiver_name: r.receiver_name, receiver_phone: r.receiver_phone,
-            receiver_address: r.receiver_address || "-", remark: r.remark || "",
+            receiver_address: r.receiver_address || "-",
+            receiver_subdistrict: r.receiver_subdistrict || "",
+            receiver_district: r.receiver_district || "",
+            receiver_province: r.receiver_province || "",
+            receiver_postal: r.receiver_postal || "",
+            remark: r.remark || "",
             cod_amount: r.cod_amount || 0, status: "pending",
             created_by: user.id, created_by_name: user.display_name,
           });
@@ -2113,16 +2142,17 @@ export default function FlashBackend() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                 <thead><tr style={{ background: "#f8fafc" }}>
                   <th style={{ padding: "6px 8px", width: 30 }}><input type="checkbox" checked={upsellRows.every(r => r._selected)} onChange={() => setUpsellRows(prev => { const all = prev.every(r => r._selected); return prev.map(r => ({ ...r, _selected: !all })); })} /></th>
-                  {["ชื่อ","เบอร์","ที่อยู่","หมายเหตุ","ยอด"].map((h,i) => <th key={i} style={{ padding: "6px 8px", textAlign: "left", fontWeight: 700, color: "#64748b" }}>{h}</th>)}
+                  {["ชื่อ","เบอร์","อำเภอ","จังหวัด","COD","หมายเหตุ"].map((h,i) => <th key={i} style={{ padding: "6px 8px", textAlign: "left", fontWeight: 700, color: "#64748b" }}>{h}</th>)}
                 </tr></thead>
                 <tbody>{upsellRows.map((r, i) => (
-                  <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                  <tr key={i} style={{ borderBottom: "1px solid #f1f5f9", opacity: r._selected ? 1 : .4 }}>
                     <td style={{ padding: "5px 8px" }}><input type="checkbox" checked={r._selected} onChange={() => setUpsellRows(prev => prev.map((x, idx) => idx === i ? { ...x, _selected: !x._selected } : x))} /></td>
                     <td style={{ padding: "5px 8px", fontWeight: 600 }}>{r.receiver_name}</td>
                     <td style={{ padding: "5px 8px", fontFamily: "monospace" }}>{r.receiver_phone}</td>
-                    <td style={{ padding: "5px 8px", fontSize: 11, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis" }}>{r.receiver_address}</td>
+                    <td style={{ padding: "5px 8px" }}>{r.receiver_district}</td>
+                    <td style={{ padding: "5px 8px", fontSize: 11 }}>{r.receiver_province}</td>
+                    <td style={{ padding: "5px 8px", fontWeight: 600, color: r.cod_amount > 0 ? "#d97706" : "#cbd5e1" }}>{r.cod_amount > 0 ? `฿${r.cod_amount}` : "—"}</td>
                     <td style={{ padding: "5px 8px", fontSize: 11 }}>{r.remark}</td>
-                    <td style={{ padding: "5px 8px", fontWeight: 600 }}>{r.cod_amount || ""}</td>
                   </tr>
                 ))}</tbody>
               </table>
