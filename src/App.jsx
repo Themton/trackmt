@@ -737,11 +737,10 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
       if (i % 5 === 4) await new Promise(r => setTimeout(r, 500));
     }
     setDone(true);
-    sb.broadcastChange();
     if (failedItems.length > 0) {
       setImportFailed(failedItems);
     }
-    setTimeout(() => { if (failedItems.length === 0) onSave(); }, 1000);
+    // ไม่ auto-close — รอกดปุ่มตกลง
   };
 
   const toggleRow = (i) => setRows(prev => prev.map((r, idx) => idx === i ? { ...r, _selected: !r._selected } : r));
@@ -781,9 +780,9 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
             {importFailed.map((f, i) => <div key={i} style={{ padding: "4px 0", borderBottom: "1px solid #fecaca" }}>❌ {f.receiver_name} ({f.receiver_phone}) — <span style={{ color: "#999" }}>{f._error}</span></div>)}
           </div>
           <button onClick={() => { const bom = "\uFEFF"; const headers = ["ชื่อ","เบอร์","ที่อยู่","ตำบล","อำเภอ","จังหวัด","ไปรษณีย์","COD","หมายเหตุ","สาเหตุ"]; const csvRows = importFailed.map(f => [f.receiver_name,f.receiver_phone,f.receiver_address,f.receiver_subdistrict,f.receiver_district,f.receiver_province,f.receiver_postal,f.cod_amount||"",f.remark||"",f._error].map(v => `"${String(v||"").replace(/"/g,'""')}"`).join(",")); const csv = bom + [headers.join(","), ...csvRows].join("\n"); const blob = new Blob([csv], { type: "text/csv;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `import-failed-${new Date().toISOString().slice(0,10)}.csv`; a.click(); }} style={{ padding: "10px 24px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>📥 ดาวน์โหลดรายการที่ล้มเหลว ({importFailed.length} รายการ)</button>
-          <button onClick={onSave} style={{ padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer", marginLeft: 8 }}>✅ ตกลง</button>
+          <button onClick={() => { sb.broadcastChange(); onSave(); }} style={{ padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer", marginLeft: 8 }}>✅ ตกลง</button>
         </div>)}
-        {done && importFailed.length === 0 && <button onClick={onSave} style={{ marginTop: 16, padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>✅ ตกลง</button>}
+        {done && importFailed.length === 0 && <button onClick={() => { sb.broadcastChange(); onSave(); }} style={{ marginTop: 16, padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>✅ ตกลง</button>}
       </div>}
     </div>
   );
@@ -870,10 +869,10 @@ function ImportModal({ user, shops, onSave, onClose, inline }) {
                 </div>
                 <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
                   <button onClick={() => { const bom = "\uFEFF"; const headers = ["ชื่อ","เบอร์","ที่อยู่","ตำบล","อำเภอ","จังหวัด","ไปรษณีย์","COD","หมายเหตุ","สาเหตุ"]; const csvRows = importFailed.map(f => [f.receiver_name,f.receiver_phone,f.receiver_address,f.receiver_subdistrict,f.receiver_district,f.receiver_province,f.receiver_postal,f.cod_amount||"",f.remark||"",f._error].map(v => `"${String(v||"").replace(/"/g,'""')}"`).join(",")); const csv = bom + [headers.join(","), ...csvRows].join("\n"); const blob = new Blob([csv], { type: "text/csv;charset=utf-8" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `import-failed-${new Date().toISOString().slice(0,10)}.csv`; a.click(); }} style={{ padding: "10px 24px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>📥 ดาวน์โหลดรายการที่ล้มเหลว</button>
-                  <button onClick={onSave} style={{ padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>✅ ตกลง</button>
+                  <button onClick={() => { sb.broadcastChange(); onSave(); }} style={{ padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>✅ ตกลง</button>
                 </div>
               </div>)}
-              {done && importFailed.length === 0 && <button onClick={onSave} style={{ marginTop: 16, padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>✅ ตกลง</button>}
+              {done && importFailed.length === 0 && <button onClick={() => { sb.broadcastChange(); onSave(); }} style={{ marginTop: 16, padding: "10px 24px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>✅ ตกลง</button>}
             </div>
           )}
         </div>
