@@ -2701,32 +2701,54 @@ export default function FlashBackend() {
                         e.stopPropagation();
                         if (flashRefreshing) return;
                         setFlashRefreshing(true);
-                        let updated = 0, errors = 0, still = 0;
-                        const targets = [...notInFlash];
-                        for (let i = 0; i < targets.length; i += 20) {
-                          const batch = targets.slice(i, i + 20);
-                          try {
-                            const acc = getFlashAccount(batch[0]);
-                            const result = await flashApi.getTracking(batch.map(p => p.flash_pno), acc);
-                            if (result.code === 1 && result.data) {
-                              for (const item of result.data) {
-                                const parcel = batch.find(p => p.flash_pno === item.pno);
-                                if (!parcel) continue;
-                                const lastRoute = item.routes?.[0];
-                                const updates = { flash_state: item.state, flash_status: item.stateText || "", flash_detail: lastRoute?.message || "", flash_updated_at: new Date((item.stateChangeAt || 0) * 1000).toISOString() };
-                                setParcels(prev => prev.map(x => x.id === parcel.id ? { ...x, ...updates } : x));
-                                try { await sb.update("fx_parcels", parcel.id, updates); } catch {}
-                                if (Number(item.state) > 1) updated++; else still++;
+                        let updated = 0, still = 0, errors = 0;
+                        const details = [];
+                        // แยกตาม Flash account
+                        const byAccount = {};
+                        for (const p of notInFlash) {
+                          const acc = getFlashAccount(p);
+                          const key = acc.mchId;
+                          if (!byAccount[key]) byAccount[key] = { acc, parcels: [] };
+                          byAccount[key].parcels.push(p);
+                        }
+                        for (const [mchId, group] of Object.entries(byAccount)) {
+                          for (let i = 0; i < group.parcels.length; i += 20) {
+                            const batch = group.parcels.slice(i, i + 20);
+                            try {
+                              const result = await flashApi.getTracking(batch.map(p => p.flash_pno), group.acc);
+                              if (result.code === 1 && result.data) {
+                                for (const item of result.data) {
+                                  const parcel = batch.find(p => p.flash_pno === item.pno);
+                                  if (!parcel) continue;
+                                  const lastRoute = item.routes?.[0];
+                                  const updates = { flash_state: item.state, flash_status: item.stateText || "", flash_detail: lastRoute?.message || "", flash_updated_at: new Date((item.stateChangeAt || 0) * 1000).toISOString() };
+                                  setParcels(prev => prev.map(x => x.id === parcel.id ? { ...x, ...updates } : x));
+                                  try { await sb.update("fx_parcels", parcel.id, updates); } catch {}
+                                  if (Number(item.state) > 1) { updated++; details.push(`✅ ${item.pno} → ${item.stateText}`); }
+                                  else { still++; details.push(`⏳ ${item.pno} → state=${item.state} "${item.stateText || 'ว่าง'}"`); }
+                                }
+                                // pno ที่ไม่อยู่ใน result.data
+                                for (const p of batch) {
+                                  if (!result.data.find(d => d.pno === p.flash_pno)) {
+                                    errors++; details.push(`❌ ${p.flash_pno} → ไม่พบใน Flash (${mchId})`);
+                                  }
+                                }
+                              } else {
+                                errors += batch.length;
+                                details.push(`❌ API error (${mchId}): code=${result.code} msg=${result.message || 'ไม่ทราบ'}`);
                               }
-                            } else { errors += batch.length; }
-                          } catch { errors += batch.length; }
+                            } catch (err) {
+                              errors += batch.length;
+                              details.push(`❌ Network error (${mchId}): ${err.message}`);
+                            }
+                          }
                         }
                         setFlashRefreshing(false);
-                        const msg = [];
-                        if (updated) msg.push(`✅ อัพเดตแล้ว ${updated} รายการ`);
-                        if (still) msg.push(`⏳ ยังไม่เข้าระบบ ${still} รายการ`);
-                        if (errors) msg.push(`❌ ไม่สามารถเช็คได้ ${errors} รายการ`);
-                        alert(`ผล Sync:\n${msg.join("\n") || "ไม่พบข้อมูล"}`);
+                        const summary = [];
+                        if (updated) summary.push(`✅ เข้าระบบแล้ว: ${updated}`);
+                        if (still) summary.push(`⏳ ยังไม่เข้าระบบ: ${still}`);
+                        if (errors) summary.push(`❌ ไม่พบ/Error: ${errors}`);
+                        alert(`ผล Sync (แยกตาม account):\n${summary.join("\n")}\n\n--- รายละเอียด ---\n${details.join("\n")}`);
                       }} disabled={flashRefreshing} style={{ padding: "5px 14px", background: flashRefreshing ? "#94a3b8" : "#4f46e5", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: flashRefreshing ? "wait" : "pointer" }}>{flashRefreshing ? "⟳ กำลัง sync..." : `🔄 Sync ${notInFlash.length} รายการ`}</button>
                     </div>
                     <div style={{ maxHeight: 300, overflowY: "auto" }}>
