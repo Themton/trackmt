@@ -2697,7 +2697,37 @@ export default function FlashBackend() {
                         <button onClick={() => setNotifSelected(new Set())} style={{ padding: "5px 10px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 11, cursor: "pointer" }}>✕ ยกเลิก</button>
                       </>}
                       <button onClick={() => { setPrintPreview(notInFlash.map(p => ({ ...p }))); }} style={{ marginLeft: "auto", padding: "5px 14px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🖨️ ปริ้นทั้งหมด ({notInFlash.length})</button>
-                      <button onClick={(e) => { e.stopPropagation(); refreshFlashStatus(); }} disabled={flashRefreshing} style={{ padding: "5px 14px", background: flashRefreshing ? "#94a3b8" : "#4f46e5", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: flashRefreshing ? "wait" : "pointer" }}>{flashRefreshing ? "⟳ กำลัง sync..." : "🔄 Sync สถานะ"}</button>
+                      <button onClick={async (e) => {
+                        e.stopPropagation();
+                        if (flashRefreshing) return;
+                        setFlashRefreshing(true);
+                        let updated = 0, errors = 0, still = 0;
+                        const targets = [...notInFlash];
+                        for (let i = 0; i < targets.length; i += 20) {
+                          const batch = targets.slice(i, i + 20);
+                          try {
+                            const acc = getFlashAccount(batch[0]);
+                            const result = await flashApi.getTracking(batch.map(p => p.flash_pno), acc);
+                            if (result.code === 1 && result.data) {
+                              for (const item of result.data) {
+                                const parcel = batch.find(p => p.flash_pno === item.pno);
+                                if (!parcel) continue;
+                                const lastRoute = item.routes?.[0];
+                                const updates = { flash_state: item.state, flash_status: item.stateText || "", flash_detail: lastRoute?.message || "", flash_updated_at: new Date((item.stateChangeAt || 0) * 1000).toISOString() };
+                                setParcels(prev => prev.map(x => x.id === parcel.id ? { ...x, ...updates } : x));
+                                try { await sb.update("fx_parcels", parcel.id, updates); } catch {}
+                                if (Number(item.state) > 1) updated++; else still++;
+                              }
+                            } else { errors += batch.length; }
+                          } catch { errors += batch.length; }
+                        }
+                        setFlashRefreshing(false);
+                        const msg = [];
+                        if (updated) msg.push(`✅ อัพเดตแล้ว ${updated} รายการ`);
+                        if (still) msg.push(`⏳ ยังไม่เข้าระบบ ${still} รายการ`);
+                        if (errors) msg.push(`❌ ไม่สามารถเช็คได้ ${errors} รายการ`);
+                        alert(`ผล Sync:\n${msg.join("\n") || "ไม่พบข้อมูล"}`);
+                      }} disabled={flashRefreshing} style={{ padding: "5px 14px", background: flashRefreshing ? "#94a3b8" : "#4f46e5", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: flashRefreshing ? "wait" : "pointer" }}>{flashRefreshing ? "⟳ กำลัง sync..." : `🔄 Sync ${notInFlash.length} รายการ`}</button>
                     </div>
                     <div style={{ maxHeight: 300, overflowY: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
