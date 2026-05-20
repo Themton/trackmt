@@ -1100,14 +1100,16 @@ export default function FlashBackend() {
   }, [user, isDemo, loadParcels, loadShops]);
 
   // ═══ AUTO-SYNC FLASH STATUS — ทุก 5 นาที + ตอนโหลดหน้า ═══
+  const parcelsRef = useRef(parcels);
+  parcelsRef.current = parcels;
   const lastAutoSync = useRef(0);
   useEffect(() => {
     if (!user || isDemo || !parcels.length) return;
     const doAutoSync = async () => {
-      if (flashRefreshing) return;
-      if (Date.now() - lastAutoSync.current < 60000) return; // ไม่ sync ถี่กว่า 1 นาที
+      if (Date.now() - lastAutoSync.current < 30000) return;
       lastAutoSync.current = Date.now();
-      const toCheck = parcels.filter(p => p.flash_pno && p.status !== "cancelled" && p.flash_status !== "เซ็นรับแล้ว" && p.flash_status !== "คืนสำเร็จ");
+      const current = parcelsRef.current;
+      const toCheck = current.filter(p => p.flash_pno && p.status !== "cancelled" && p.flash_status !== "เซ็นรับแล้ว" && p.flash_status !== "คืนสำเร็จ");
       if (!toCheck.length) return;
       setFlashRefreshing(true);
       for (let i = 0; i < toCheck.length; i += 20) {
@@ -1130,9 +1132,7 @@ export default function FlashBackend() {
       }
       setFlashRefreshing(false);
     };
-    // Sync ตอนโหลดหน้า (delay 3 วิ)
-    const initTimer = setTimeout(doAutoSync, 3000);
-    // Sync ทุก 5 นาที
+    const initTimer = setTimeout(doAutoSync, 2000);
     const interval = setInterval(doAutoSync, 5 * 60 * 1000);
     return () => { clearTimeout(initTimer); clearInterval(interval); };
   }, [user, isDemo, parcels.length]);
@@ -1162,7 +1162,8 @@ export default function FlashBackend() {
   const stats = useMemo(() => ({ total: statsData.length, draft: statsData.filter(p => p.status === "draft").length, created: statsData.filter(p => p.status === "created").length, printed: statsData.filter(p => p.status === "printed").length, cancelled: statsData.filter(p => p.status === "cancelled").length, codTotal: statsData.filter(p => p.cod_enabled).reduce((s, p) => s + Number(p.cod_amount || 0), 0) }), [statsData]);
 
   // แจ้งเตือน: พัสดุที่มีเลข Tracking แต่ Flash ยังไม่รับเข้าระบบ
-  const notInFlash = useMemo(() => parcels.filter(p => p.flash_pno && p.status !== "cancelled" && (!p.flash_status || p.flash_status === "สร้างรายการ")), [parcels]);
+  // เช็คทั้ง flash_status (text) และ flash_state (number: 0-1 = ยังไม่เข้าระบบ)
+  const notInFlash = useMemo(() => parcels.filter(p => p.flash_pno && p.status !== "cancelled" && (!p.flash_status || p.flash_status === "สร้างรายการ") && (!p.flash_state || Number(p.flash_state) <= 1)), [parcels]);
 
   const handleDelete = async (p) => { if (!confirm(`ลบ "${p.receiver_name}"?`)) return; if (isDemo) { setParcels(prev => prev.filter(x => x.id !== p.id)); return; } mutating.current = true; try { await sb.delete("fx_parcels", p.id); setParcels(prev => prev.filter(x => x.id !== p.id)); showToast("ลบสำเร็จ"); await sb.broadcastChange(); } catch (e) { alert(e.message); } setTimeout(() => { mutating.current = false; }, 1000); };
   const markPrinted = async (p) => {
