@@ -2013,6 +2013,7 @@ export default function FlashBackend() {
     const [upsellRows, setUpsellRows] = useState([]);
     const [upsellImporting, setUpsellImporting] = useState(false);
     const [upsellProgress, setUpsellProgress] = useState(0);
+    const [upsellSelected, setUpsellSelected] = useState(new Set());
 
     const loadUpsell = async () => { setUpsellLoading(true); try { const d = await sb.select("fx_upsell", { order: "created_at.desc" }); setUpsellData(d || []); } catch {} setUpsellLoading(false); };
     useEffect(() => { loadUpsell(); }, []);
@@ -2231,14 +2232,26 @@ export default function FlashBackend() {
 
         {/* Table */}
         <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #e2e8f0", overflow: "hidden" }}>
+          {/* Batch action bar */}
+          {upsellSelected.size > 0 && (
+            <div style={{ padding: "10px 16px", background: "linear-gradient(135deg,#eef2ff,#faf5ff)", borderBottom: "1px solid #c7d2fe", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#4f46e5" }}>✓ เลือก {upsellSelected.size} รายการ</span>
+              <button onClick={async () => { const targets = upsellData.filter(p => upsellSelected.has(p.id) && p.status === "pending"); if (!targets.length) { alert("ไม่มีรายการรอดำเนินการ"); return; } for (const t of targets) await updateStatus(t, "success"); setUpsellSelected(new Set()); }} style={{ padding: "7px 14px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✅ สำเร็จ ({upsellData.filter(p => upsellSelected.has(p.id) && p.status === "pending").length})</button>
+              <button onClick={async () => { const targets = upsellData.filter(p => upsellSelected.has(p.id) && p.status === "pending"); if (!targets.length) { alert("ไม่มีรายการรอดำเนินการ"); return; } for (const t of targets) await updateStatus(t, "cancelled"); setUpsellSelected(new Set()); }} style={{ padding: "7px 14px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>❌ ยกเลิก ({upsellData.filter(p => upsellSelected.has(p.id) && p.status === "pending").length})</button>
+              <button onClick={async () => { const targets = upsellData.filter(p => upsellSelected.has(p.id) && p.status !== "success" && !p.parcel_created); if (!targets.length) { alert("ไม่มีรายการที่สร้างพัสดุได้"); return; } if (!confirm(`สร้างพัสดุ ${targets.length} รายการ?`)) return; for (const t of targets) { try { await createParcelFromUpsell(t); } catch {} } setUpsellSelected(new Set()); showToast(`สร้างพัสดุ ${targets.length} รายการ`); }} style={{ padding: "7px 14px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📦 สร้างพัสดุ ({upsellData.filter(p => upsellSelected.has(p.id) && p.status !== "success" && !p.parcel_created).length})</button>
+              <button onClick={() => setUpsellSelected(new Set())} style={{ padding: "7px 12px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>✕ ยกเลิก</button>
+            </div>
+          )}
           {!filtered.length ? <div style={{ padding: 50, textAlign: "center", color: "#9ca3af" }}><div style={{ fontSize: 36 }}>📭</div><div style={{ marginTop: 8, fontWeight: 600 }}>ไม่มีข้อมูล — Import Excel เพื่อเริ่มต้น</div></div> : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead><tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                  <th style={{ padding: "10px 8px", width: 30 }}><input type="checkbox" checked={filtered.length > 0 && filtered.every(p => upsellSelected.has(p.id))} onChange={() => { const allIds = filtered.map(p => p.id); if (filtered.every(p => upsellSelected.has(p.id))) setUpsellSelected(new Set()); else setUpsellSelected(new Set(allIds)); }} /></th>
                   {["#","ชื่อ","เบอร์","ที่อยู่","หมายเหตุ/สินค้า","ยอด","สถานะ","โดย","วันที่","จัดการ"].map((h,i) => <th key={i} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: "#64748b", fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>)}
                 </tr></thead>
                 <tbody>{filtered.map((p, i) => (
-                  <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 ? "#fafafa" : "#fff" }}>
+                  <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", background: upsellSelected.has(p.id) ? "#eef2ff" : i % 2 ? "#fafafa" : "#fff" }}>
+                    <td style={{ padding: "9px 8px" }}><input type="checkbox" checked={upsellSelected.has(p.id)} onChange={() => setUpsellSelected(prev => { const n = new Set(prev); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; })} /></td>
                     <td style={{ padding: "9px 12px", color: "#9ca3af", fontSize: 11 }}>{i + 1}</td>
                     <td style={{ padding: "9px 12px", fontWeight: 600 }}>{p.receiver_name}</td>
                     <td style={{ padding: "9px 12px", fontFamily: "monospace", fontSize: 12 }}>{p.receiver_phone}</td>
