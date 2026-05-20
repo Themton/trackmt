@@ -2148,7 +2148,7 @@ export default function FlashBackend() {
     };
 
     const batchCreateParcels = async () => {
-      const targets = upsellData.filter(p => p.status === "success" && !p.parcel_created);
+      const targets = upsellData.filter(p => p.status === "pending" && !p.parcel_created);
       if (!targets.length) { alert("ไม่มีรายการที่ต้องสร้างพัสดุ"); return; }
       if (!confirm(`สร้างพัสดุ ${targets.length} รายการ?\n\nจะย้ายไปหน้าจัดส่ง`)) return;
       let success = 0;
@@ -2226,7 +2226,7 @@ export default function FlashBackend() {
           <input value={upsellSearch} onChange={e => setUpsellSearch(e.target.value)} placeholder="🔍 ค้นหา ชื่อ, เบอร์..." style={{ ...I, flex: 1 }} />
           <button onClick={loadUpsell} style={{ ...I, cursor: "pointer" }}>🔄</button>
           <button onClick={exportUpsell} style={{ padding: "9px 16px", background: "#059669", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>📤 Export ({filtered.length})</button>
-          {upsellData.filter(p => p.status === "success" && !p.parcel_created).length > 0 && <button onClick={batchCreateParcels} style={{ padding: "9px 16px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>📦 สร้างพัสดุ ({upsellData.filter(p => p.status === "success" && !p.parcel_created).length})</button>}
+          {upsellData.filter(p => p.status !== "success" && !p.parcel_created).length > 0 && <button onClick={batchCreateParcels} style={{ padding: "9px 16px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>📦 สร้างพัสดุ ({upsellData.filter(p => p.status !== "success" && !p.parcel_created).length})</button>}
         </div>
 
         {/* Table */}
@@ -2253,8 +2253,8 @@ export default function FlashBackend() {
                       <button onClick={() => updateStatus(p, "success")} style={{ padding: "4px 10px", background: "#059669", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✅ สำเร็จ</button>
                       <button onClick={() => updateStatus(p, "cancelled")} style={{ padding: "4px 10px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>❌ ยกเลิก</button>
                     </div>}
-                      {p.status === "success" && !p.parcel_created && <button onClick={() => createParcelFromUpsell(p)} style={{ padding: "4px 10px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>📦 สร้างพัสดุ</button>}
-                      {p.status === "success" && p.parcel_created && <span style={{ fontSize: 11, color: "#059669", fontWeight: 600 }}>✅ สร้างแล้ว</span>}
+                      {p.status !== "success" && !p.parcel_created && <button onClick={() => createParcelFromUpsell(p)} style={{ padding: "4px 10px", background: "#4f46e5", color: "#fff", border: "none", borderRadius: 4, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>📦 สร้างพัสดุ</button>}
+                      {p.parcel_created && <span style={{ fontSize: 11, color: "#059669", fontWeight: 600 }}>✅ สร้างแล้ว</span>}
                     </td>
                   </tr>
                 ))}</tbody>
