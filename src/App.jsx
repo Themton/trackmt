@@ -1016,6 +1016,7 @@ export default function FlashBackend() {
   const [selectedShopFilter, setSelectedShopFilter] = useState("");
   const [codFilter, setCodFilter] = useState("");
   const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [notifSelected, setNotifSelected] = useState(new Set());
   const PER_PAGE = 100;
   const isDemo = SUPABASE_URL.includes("YOUR_PROJECT");
   const perm = user ? (CAN[user.role] || {}) : {};
@@ -2631,9 +2632,9 @@ export default function FlashBackend() {
             {/* 🔔 แจ้งเตือน: พัสดุยังไม่เข้าระบบ Flash */}
             {notInFlash.length > 0 && (
               <div style={{ margin: "0 24px 12px", background: "linear-gradient(135deg,#fef2f2,#fff7ed)", border: "1.5px solid #fca5a5", borderRadius: 12, overflow: "hidden" }}>
-                <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setShowNotifPanel(v => !v)}>
+                <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => { setShowNotifPanel(v => !v); if (showNotifPanel) setNotifSelected(new Set()); }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 20, animation: "pulse 2s infinite" }}>🔔</span>
+                    <span style={{ fontSize: 20 }}>🔔</span>
                     <div>
                       <span style={{ fontSize: 14, fontWeight: 800, color: "#dc2626" }}>พัสดุยังไม่เข้าระบบ Flash: {notInFlash.length} รายการ</span>
                       <span style={{ fontSize: 12, color: "#92400e", marginLeft: 8 }}>มีเลข Tracking แล้วแต่ Flash ยังไม่ได้ยิงรับ</span>
@@ -2642,16 +2643,33 @@ export default function FlashBackend() {
                   <span style={{ fontSize: 14, color: "#dc2626", fontWeight: 800, transition: "transform .2s", transform: showNotifPanel ? "rotate(180deg)" : "" }}>▼</span>
                 </div>
                 {showNotifPanel && (
-                  <div style={{ borderTop: "1px solid #fca5a5", maxHeight: 300, overflowY: "auto" }}>
+                  <div style={{ borderTop: "1px solid #fca5a5" }} onClick={e => e.stopPropagation()}>
+                    {/* Action bar */}
+                    <div style={{ padding: "8px 16px", background: "#fde6e6", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#991b1b", cursor: "pointer" }}>
+                        <input type="checkbox" checked={notInFlash.length > 0 && notInFlash.every(p => notifSelected.has(p.id))} onChange={() => { if (notInFlash.every(p => notifSelected.has(p.id))) setNotifSelected(new Set()); else setNotifSelected(new Set(notInFlash.map(p => p.id))); }} />
+                        เลือกทั้งหมด
+                      </label>
+                      {notifSelected.size > 0 && <>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#4f46e5" }}>✓ เลือก {notifSelected.size} รายการ</span>
+                        <button onClick={() => { const toPrint = notInFlash.filter(p => notifSelected.has(p.id)); if (toPrint.length) setPrintPreview(toPrint.map(p => ({ ...p }))); }} style={{ padding: "5px 14px", background: "#059669", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🖨️ ปริ้นที่เลือก ({notifSelected.size})</button>
+                        <button onClick={() => setNotifSelected(new Set())} style={{ padding: "5px 10px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 11, cursor: "pointer" }}>✕ ยกเลิก</button>
+                      </>}
+                      <button onClick={() => { setPrintPreview(notInFlash.map(p => ({ ...p }))); }} style={{ marginLeft: "auto", padding: "5px 14px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🖨️ ปริ้นทั้งหมด ({notInFlash.length})</button>
+                    </div>
+                    <div style={{ maxHeight: 300, overflowY: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                       <thead><tr style={{ background: "#fde6e6", position: "sticky", top: 0 }}>
+                        <th style={{ padding: "8px 6px", width: 30 }}></th>
                         {["#","ชื่อผู้รับ","เบอร์","Tracking","ร้านค้า","สร้างเมื่อ","ค้างมา"].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 700, fontSize: 11 }}>{h}</th>)}
                       </tr></thead>
                       <tbody>{notInFlash.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((p, i) => {
                         const days = Math.floor((Date.now() - new Date(p.created_at)) / 86400000);
                         const shop = shops?.find(s => s.id === p.shop_id);
+                        const sel = notifSelected.has(p.id);
                         return (
-                          <tr key={p.id} style={{ borderBottom: "1px solid #fee2e2", background: days >= 3 ? "#fff1f1" : i % 2 ? "#fffbfa" : "#fff", cursor: "pointer" }} onClick={() => setViewParcel(p)}>
+                          <tr key={p.id} style={{ borderBottom: "1px solid #fee2e2", background: sel ? "#ede9fe" : days >= 3 ? "#fff1f1" : i % 2 ? "#fffbfa" : "#fff", cursor: "pointer" }} onClick={() => setNotifSelected(prev => { const next = new Set(prev); if (next.has(p.id)) next.delete(p.id); else next.add(p.id); return next; })}>
+                            <td style={{ padding: "6px 6px", textAlign: "center" }}><input type="checkbox" checked={sel} readOnly /></td>
                             <td style={{ padding: "6px 10px", color: "#9ca3af" }}>{i + 1}</td>
                             <td style={{ padding: "6px 10px", fontWeight: 600 }}>{p.receiver_name}</td>
                             <td style={{ padding: "6px 10px" }}>{p.receiver_phone}</td>
@@ -2663,6 +2681,7 @@ export default function FlashBackend() {
                         );
                       })}</tbody>
                     </table>
+                    </div>
                   </div>
                 )}
               </div>
